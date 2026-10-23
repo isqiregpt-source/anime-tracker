@@ -47,7 +47,7 @@ export default function SettingsPanel({
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // ВАЖНО: проверяем is_admin корректно (null -> false)
+  // ЕДИНСТВЕННОЕ объявление isAdmin
   const isAdmin = currentProfile?.is_admin === true;
 
   useEffect(() => {
@@ -71,7 +71,6 @@ export default function SettingsPanel({
   };
 
   const loadAllProfiles = async () => {
-    console.log('🔄 Загрузка профилей из Supabase...');
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -79,19 +78,17 @@ export default function SettingsPanel({
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('❌ Ошибка загрузки профилей:', error);
+        console.error('Ошибка загрузки профилей:', error);
         setAllProfiles([]);
       } else {
-        // ВАЖНО: преобразуем null в false для is_admin
         const profiles = (data || []).map(p => ({
           ...p,
           is_admin: p.is_admin === true
         }));
-        console.log('✅ Профили из Supabase:', profiles);
         setAllProfiles(profiles);
       }
     } catch (e) {
-      console.error('💥 Критическая ошибка:', e);
+      console.error('Критическая ошибка:', e);
       setAllProfiles([]);
     }
   };
@@ -126,7 +123,7 @@ export default function SettingsPanel({
     addCustomCategory(newCat);
     setCategories(getAllCategories());
     setNewCategoryName('');
-    setNewCategoryIcon('📁');
+    setNewCategoryIcon('');
   };
 
   const handleDeleteCategory = (catId) => {
@@ -185,22 +182,26 @@ export default function SettingsPanel({
     });
   };
 
+  // ИСПРАВЛЕНО: генерируем настоящий UUID
   const handleCreateProfile = async () => {
     if (!newProfileName.trim()) {
-      setProfileMessage(' Введи имя профиля!');
+      setProfileMessage('❌ Введи имя профиля!');
       return;
     }
     if (!newProfilePassword.trim() || newProfilePassword.length < 4) {
-      setProfileMessage('❌ Пароль должен быть минимум 4 символа!');
+      setProfileMessage(' Пароль должен быть минимум 4 символа!');
       return;
     }
     if (allProfiles.find(p => p.name.toLowerCase() === newProfileName.trim().toLowerCase())) {
-      setProfileMessage('❌ Профиль с таким именем уже существует!');
+      setProfileMessage(' Профиль с таким именем уже существует!');
       return;
     }
 
+    // Генерируем настоящий UUID
+    const newId = crypto.randomUUID();
+
     const newProfile = {
-      id: `profile_${Date.now()}`,
+      id: newId,
       name: newProfileName.trim(),
       avatar_color: newProfileColor,
       password: newProfilePassword,
@@ -217,16 +218,31 @@ export default function SettingsPanel({
       .single();
 
     if (error) {
-      console.error('❌ Ошибка создания профиля:', error);
+      console.error('Ошибка создания профиля:', error);
       setProfileMessage(`❌ Ошибка: ${error.message}`);
     } else {
-      console.log('✅ Профиль создан в Supabase:', data);
-      // ВАЖНО: обновляем список профилей после создания
+      console.log('Профиль создан:', data);
       await loadAllProfiles();
       setNewProfileName('');
       setNewProfilePassword('');
       setNewProfileColor('#ef4444');
       setProfileMessage(`✅ Профиль "${data.name}" создан!`);
+    }
+  };
+
+  // ВХОД БЕЗ ПАРОЛЯ (только для администратора)
+  const handleAdminLogin = (profile) => {
+    if (!isAdmin) {
+      alert('Только администратор может входить без пароля!');
+      return;
+    }
+    if (profile.id === currentProfile?.id) {
+      alert('Вы уже в этом профиле!');
+      return;
+    }
+    if (confirm(`Войти в профиль "${profile.name}" без пароля?`)) {
+      localStorage.setItem('currentProfile', JSON.stringify(profile));
+      window.location.reload();
     }
   };
 
@@ -252,11 +268,15 @@ export default function SettingsPanel({
       setLoginError('');
       window.location.reload();
     } else {
-      setLoginError('❌ Неверный пароль!');
+      setLoginError(' Неверный пароль!');
     }
   };
 
   const handleDeleteProfile = async (profile) => {
+    if (!isAdmin) {
+      alert('Только администратор может удалять профили!');
+      return;
+    }
     if (profile.id === currentProfile?.id) {
       alert('Нельзя удалить текущий профиль! Сначала переключитесь на другой.');
       return;
@@ -273,13 +293,16 @@ export default function SettingsPanel({
   };
 
   const handleToggleAdmin = async (profile) => {
+    if (!isAdmin) {
+      alert('Только администратор может изменять права!');
+      return;
+    }
     if (profile.id === currentProfile?.id) {
       alert('Нельзя изменить права текущего профиля!');
       return;
     }
     
     const newAdminStatus = !profile.is_admin;
-    console.log(`Изменение прав для ${profile.name}: is_admin = ${newAdminStatus}`);
     
     const { error } = await supabase
       .from('profiles')
@@ -287,7 +310,6 @@ export default function SettingsPanel({
       .eq('id', profile.id);
     
     if (error) {
-      console.error('Ошибка изменения прав:', error);
       alert(`Ошибка: ${error.message}`);
       return;
     }
@@ -297,6 +319,10 @@ export default function SettingsPanel({
   };
 
   const handleChangePassword = async (profile) => {
+    if (!isAdmin) {
+      alert('Только администратор может менять пароли!');
+      return;
+    }
     const newPassword = prompt(`Введи новый пароль для профиля "${profile.name}":`);
     if (!newPassword) return;
     
@@ -319,12 +345,12 @@ export default function SettingsPanel({
     alert(`✅ Пароль для профиля "${profile.name}" изменён!`);
   };
 
-  const iconOptions = ['📁', '📂', '', '⭐', '🌟', '', '🎪', '🎨', '🎵', '⚡', '🌙', '☀️', '', '🏆', '🚀', '💫'];
+  const iconOptions = ['📁', '📂', '', '⭐', '🔥', '💎', '🌟', '🎭', '🎪', '🎨', '🎵', '🎮', '', '🌙', '☀️', '🌊', '🌸', '🏆', '🚀', '💫'];
 
   const tabs = [
     { id: 'profile', name: '👤 Профиль' },
     { id: 'accounts', name: '👥 Профили' },
-    { id: 'appearance', name: ' Фон' },
+    { id: 'appearance', name: '🎨 Фон' },
     { id: 'folders', name: '📁 Папки' },
     { id: 'tags', name: '🏷️ Теги' },
     { id: 'tools', name: '🛠️ Инструменты' },
@@ -336,7 +362,7 @@ export default function SettingsPanel({
         <div className="bg-gray-900 border border-red-900/50 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl relative flex flex-col">
           
           <div className="p-5 border-b border-red-900/30 flex items-center justify-between flex-shrink-0 bg-gray-900">
-            <h2 className="text-2xl font-bold text-red-400">️ Настройки</h2>
+            <h2 className="text-2xl font-bold text-red-400">⚙️ Настройки</h2>
             <button 
               onClick={onClose} 
               className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
@@ -365,7 +391,7 @@ export default function SettingsPanel({
             
             {activeTab === 'profile' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3"> Текущий профиль</h3>
+                <h3 className="text-lg font-bold text-white mb-3">👤 Текущий профиль</h3>
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl flex items-center gap-4">
                   <div 
                     className="w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black text-white flex-shrink-0" 
@@ -392,14 +418,12 @@ export default function SettingsPanel({
 
             {activeTab === 'accounts' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3"> Управление профилями</h3>
+                <h3 className="text-lg font-bold text-white mb-3">👥 Управление профилями</h3>
                 
                 {/* Отладочная информация */}
-                <div className="p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
+                <div className="p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg mb-4">
                   <p className="text-xs text-blue-300">
-                    Текущий профиль: {currentProfile?.name} | 
-                    is_admin: {String(isAdmin)} | 
-                    Всего профилей: {allProfiles.length}
+                    Текущий: {currentProfile?.name} | is_admin: {String(isAdmin)} | Всего: {allProfiles.length}
                   </p>
                 </div>
 
@@ -440,38 +464,57 @@ export default function SettingsPanel({
                               </span>
                             )}
                           </div>
-                          <div className="flex gap-2 ml-3">
+                          <div className="flex gap-1 ml-3 flex-wrap">
                             {profile.id !== currentProfile?.id && (
                               <>
-                                <button 
-                                  onClick={() => handleRequestLogin(profile)}
-                                  className="px-3 py-1 bg-blue-900/50 hover:bg-blue-900/80 rounded text-blue-300 text-xs font-bold transition"
-                                >
-                                  🔑 Войти
-                                </button>
+                                {/* Кнопка "Войти без пароля" — только для админа */}
+                                {isAdmin && (
+                                  <button 
+                                    onClick={() => handleAdminLogin(profile)}
+                                    className="px-2 py-1 bg-green-900/50 hover:bg-green-900/80 rounded text-green-300 text-xs font-bold transition"
+                                    title="Войти без пароля (только админ)"
+                                  >
+                                    🔓 Войти
+                                  </button>
+                                )}
+                                
+                                {/* Кнопка "Войти с паролем" — для всех */}
+                                {!isAdmin && (
+                                  <button 
+                                    onClick={() => handleRequestLogin(profile)}
+                                    className="px-2 py-1 bg-blue-900/50 hover:bg-blue-900/80 rounded text-blue-300 text-xs font-bold transition"
+                                  >
+                                    🔑 Войти
+                                  </button>
+                                )}
+                                
+                                {/* Кнопки управления — только для админа */}
                                 {isAdmin && (
                                   <>
                                     <button 
                                       onClick={() => handleChangePassword(profile)}
-                                      className="px-3 py-1 bg-purple-900/50 hover:bg-purple-900/80 rounded text-purple-300 text-xs font-bold transition"
+                                      className="px-2 py-1 bg-purple-900/50 hover:bg-purple-900/80 rounded text-purple-300 text-xs font-bold transition"
+                                      title="Сменить пароль"
                                     >
-                                      🔒 Пароль
+                                      🔒
                                     </button>
                                     <button 
                                       onClick={() => handleToggleAdmin(profile)}
-                                      className={`px-3 py-1 rounded text-xs font-bold transition ${
+                                      className={`px-2 py-1 rounded text-xs font-bold transition ${
                                         profile.is_admin 
                                           ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
                                           : 'bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-300'
                                       }`}
+                                      title={profile.is_admin ? 'Убрать права админа' : 'Сделать админом'}
                                     >
-                                      {profile.is_admin ? 'Убрать админа' : 'Сделать админом'}
+                                      {profile.is_admin ? '-' : '👑+'}
                                     </button>
                                     <button 
                                       onClick={() => handleDeleteProfile(profile)}
-                                      className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                                      className="px-2 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                                      title="Удалить профиль"
                                     >
-                                      Удалить
+                                      🗑️
                                     </button>
                                   </>
                                 )}
@@ -595,8 +638,7 @@ export default function SettingsPanel({
 
             {activeTab === 'folders' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">📁 Управление папками</h3>
-                
+                <h3 className="text-lg font-bold text-white mb-3"> Управление папками</h3>
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
                   <p className="text-sm text-gray-400 font-bold">Добавить новую папку:</p>
                   <div className="flex gap-2">
@@ -624,7 +666,6 @@ export default function SettingsPanel({
                     </button>
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   {categories.map(cat => (
                     <div 
@@ -659,8 +700,7 @@ export default function SettingsPanel({
 
             {activeTab === 'tags' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">🏷️ Управление тегами</h3>
-                
+                <h3 className="text-lg font-bold text-white mb-3">️ Управление тегами</h3>
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
                   <p className="text-sm text-gray-400 font-bold">Добавить новый тег:</p>
                   <div className="flex gap-2">
@@ -685,7 +725,6 @@ export default function SettingsPanel({
                     </button>
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   {tags.length === 0 ? (
                     <p className="text-gray-500 text-sm text-center py-4">Нет пользовательских тегов</p>

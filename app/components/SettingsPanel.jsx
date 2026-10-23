@@ -623,4 +623,231 @@ export default function SettingsPanel({
                         <span className="text-white font-medium truncate">{cat.name}</span>
                         <span className="text-gray-500 text-sm">({(animeLists[cat.id] || []).length})</span>
                         {cat.isCustom && (
-                          <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700/50 rounded text-xs text
+                          <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700/50 rounded text-xs text-blue-300">custom</span>
+                        )}
+                      </div>
+                      {!isDefaultCategory(cat.id) && (
+                        <button 
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="ml-2 px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'tags' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-3">🏷️ Управление тегами</h3>
+                
+                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
+                  <p className="text-sm text-gray-400 font-bold">Добавить новый тег:</p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="color"
+                      value={newTagColor}
+                      onChange={(e) => setNewTagColor(e.target.value)}
+                      className="w-12 h-10 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
+                    />
+                    <input 
+                      type="text"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      placeholder="Название тега"
+                      className="flex-1 px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
+                    />
+                    <button 
+                      onClick={handleAddTag}
+                      className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {tags.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">Нет пользовательских тегов</p>
+                  ) : (
+                    tags.map(tag => (
+                      <div 
+                        key={tag.id} 
+                        className="flex items-center justify-between p-3 bg-black/40 border border-red-900/30 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }}></div>
+                          <span className="text-white font-medium">{tag.name}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteTag(tag.id)}
+                          className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'tools' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-3">🛠️ Инструменты</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => setShowImport(true)}
+                    className="px-4 py-4 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-700/50 rounded-lg text-blue-200 font-bold transition text-left flex items-center gap-3"
+                  >
+                    <span className="text-2xl">📊</span>
+                    <div>
+                      <p className="font-bold">Импорт из Excel/CSV</p>
+                      <p className="text-xs text-blue-300/70">Массовое добавление аниме</p>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={() => setShowCoverSearch(true)}
+                    className="px-4 py-4 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/50 rounded-lg text-purple-200 font-bold transition text-left flex items-center gap-3"
+                  >
+                    <span className="text-2xl">🖼️</span>
+                    <div>
+                      <p className="font-bold">Найти обложки</p>
+                      <p className="text-xs text-purple-300/70">Автоматический поиск постеров</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      </div>
+
+      {showPasswordModal && selectedProfileForLogin && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[310] p-4">
+          <div className="bg-gray-900 border-2 border-blue-700/50 rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-blue-400">🔑 Вход в профиль</h3>
+                <button 
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setSelectedProfileForLogin(null);
+                    setLoginPassword('');
+                    setLoginError('');
+                  }}
+                  className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
+                >
+                  
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4 mb-6 p-4 bg-black/40 border border-red-900/30 rounded-xl">
+                <div 
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black text-white flex-shrink-0" 
+                  style={{ backgroundColor: selectedProfileForLogin.avatar_color || '#ef4444' }}
+                >
+                  {selectedProfileForLogin.name?.charAt(0).toUpperCase() || '?'}
+                </div>
+                <div>
+                  <p className="text-white font-bold text-lg">{selectedProfileForLogin.name}</p>
+                  {selectedProfileForLogin.is_admin && (
+                    <p className="text-xs text-red-400">👑 Администратор</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Введи пароль:</label>
+                  <input 
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      setLoginError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleConfirmLogin();
+                    }}
+                    placeholder="••••••"
+                    className="w-full px-4 py-3 bg-black/60 border-2 border-red-900/30 rounded-lg text-white text-base focus:outline-none focus:border-blue-700 placeholder-gray-500"
+                    autoFocus
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-red-300 text-sm">
+                    {loginError}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleConfirmLogin}
+                    className="flex-1 px-4 py-3 bg-blue-700 hover:bg-blue-600 rounded-lg text-white font-bold transition"
+                  >
+                    ✓ Войти
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setSelectedProfileForLogin(null);
+                      setLoginPassword('');
+                      setLoginError('');
+                    }}
+                    className="px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold transition"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 z-[300]">
+          <ExcelImport 
+            onClose={() => setShowImport(false)} 
+            onImportComplete={() => {
+              setShowImport(false);
+              if (onImportComplete) onImportComplete();
+            }}
+            currentProfile={currentProfile}
+            activeCategory={activeCategory}
+            animeLists={animeLists}
+            setAnimeLists={setAnimeLists}
+          />
+        </div>
+      )}
+
+      {showCoverSearch && (
+        <div className="fixed inset-0 z-[300]">
+          <CoverSearch 
+            onClose={() => setShowCoverSearch(false)} 
+            animeList={Object.values(animeLists).flat()}
+            onUpdateAnime={(animeId, updatedData) => {
+              setAnimeLists(prev => {
+                const newList = { ...prev };
+                for (const cat in newList) {
+                  const index = (newList[cat] || []).findIndex(a => a.id === animeId);
+                  if (index !== -1) {
+                    newList[cat][index] = { ...newList[cat][index], ...updatedData };
+                    break;
+                  }
+                }
+                return newList;
+              });
+            }}
+          />
+        </div>
+      )}
+    </>
+  );
+}

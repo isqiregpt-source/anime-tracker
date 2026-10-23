@@ -43,7 +43,14 @@ export default function SettingsPanel({
   const [allProfiles, setAllProfiles] = useState([]);
   const [newProfileName, setNewProfileName] = useState('');
   const [newProfileColor, setNewProfileColor] = useState('#ef4444');
+  const [newProfilePassword, setNewProfilePassword] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
+
+  // Модалка ввода пароля
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedProfileForLogin, setSelectedProfileForLogin] = useState(null);
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   // Загрузка данных при открытии
   useEffect(() => {
@@ -66,13 +73,11 @@ export default function SettingsPanel({
     localStorage.setItem('customTags', JSON.stringify(newTags));
   };
 
-  // Загрузка всех профилей из localStorage
   const loadAllProfiles = () => {
     try {
       const saved = localStorage.getItem('allProfiles');
       const profiles = saved ? JSON.parse(saved) : [];
       
-      // Если текущего профиля нет в списке, добавляем его
       if (currentProfile && !profiles.find(p => p.id === currentProfile.id)) {
         profiles.push(currentProfile);
         localStorage.setItem('allProfiles', JSON.stringify(profiles));
@@ -179,11 +184,20 @@ export default function SettingsPanel({
   // ===== ПРОФИЛИ =====
   const handleCreateProfile = () => {
     if (!newProfileName.trim()) {
-      setProfileMessage('❌ Введи имя профиля!');
+      setProfileMessage(' Введи имя профиля!');
       return;
     }
     
-    // Проверяем, нет ли уже такого профиля
+    if (!newProfilePassword.trim()) {
+      setProfileMessage('❌ Введи пароль для профиля!');
+      return;
+    }
+
+    if (newProfilePassword.length < 4) {
+      setProfileMessage('❌ Пароль должен быть минимум 4 символа!');
+      return;
+    }
+    
     if (allProfiles.find(p => p.name.toLowerCase() === newProfileName.trim().toLowerCase())) {
       setProfileMessage('❌ Профиль с таким именем уже существует!');
       return;
@@ -193,6 +207,7 @@ export default function SettingsPanel({
       id: `profile_${Date.now()}`,
       name: newProfileName.trim(),
       avatar_color: newProfileColor,
+      password: newProfilePassword, // Храним пароль (для локального приложения)
       is_admin: false,
       created_at: new Date().toISOString()
     };
@@ -201,18 +216,35 @@ export default function SettingsPanel({
     localStorage.setItem('allProfiles', JSON.stringify(updated));
     setAllProfiles(updated);
     setNewProfileName('');
+    setNewProfilePassword('');
     setNewProfileColor('#ef4444');
     setProfileMessage(`✅ Профиль "${newProfile.name}" создан!`);
   };
 
-  const handleSwitchProfile = (profile) => {
+  const handleRequestLogin = (profile) => {
     if (profile.id === currentProfile?.id) {
       alert('Вы уже используете этот профиль!');
       return;
     }
-    if (confirm(`Переключиться на профиль "${profile.name}"?`)) {
-      localStorage.setItem('currentProfile', JSON.stringify(profile));
+    setSelectedProfileForLogin(profile);
+    setLoginPassword('');
+    setLoginError('');
+    setShowPasswordModal(true);
+  };
+
+  const handleConfirmLogin = () => {
+    if (!selectedProfileForLogin) return;
+
+    if (loginPassword === selectedProfileForLogin.password) {
+      // Пароль верный — переключаемся
+      localStorage.setItem('currentProfile', JSON.stringify(selectedProfileForLogin));
+      setShowPasswordModal(false);
+      setSelectedProfileForLogin(null);
+      setLoginPassword('');
+      setLoginError('');
       window.location.reload();
+    } else {
+      setLoginError('❌ Неверный пароль!');
     }
   };
 
@@ -241,7 +273,24 @@ export default function SettingsPanel({
     setAllProfiles(updated);
   };
 
-  const iconOptions = ['📁', '📂', '', '⭐', '', '💎', '🌟', '', '🎪', '', '🎵', '', '📚', '', '🌙', '☀️', '', '🌸', '', '🏆'];
+  const handleChangePassword = (profile) => {
+    const newPassword = prompt(`Введи новый пароль для профиля "${profile.name}":`);
+    if (!newPassword) return;
+    
+    if (newPassword.length < 4) {
+      alert('Пароль должен быть минимум 4 символа!');
+      return;
+    }
+
+    const updated = allProfiles.map(p => 
+      p.id === profile.id ? { ...p, password: newPassword } : p
+    );
+    localStorage.setItem('allProfiles', JSON.stringify(updated));
+    setAllProfiles(updated);
+    alert(`✅ Пароль для профиля "${profile.name}" изменён!`);
+  };
+
+  const iconOptions = ['📁', '📂', '', '⭐', '', '💎', '🌟', '', '🎪', '', '🎵', '', '📚', '', '', '☀️', '', '', '', '🏆'];
 
   const tabs = [
     { id: 'profile', name: '👤 Профиль' },
@@ -267,7 +316,7 @@ export default function SettingsPanel({
               onClick={onClose} 
               className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
             >
-              
+              ✕
             </button>
           </div>
 
@@ -366,13 +415,19 @@ export default function SettingsPanel({
                             {profile.id !== currentProfile?.id && (
                               <>
                                 <button 
-                                  onClick={() => handleSwitchProfile(profile)}
+                                  onClick={() => handleRequestLogin(profile)}
                                   className="px-3 py-1 bg-blue-900/50 hover:bg-blue-900/80 rounded text-blue-300 text-xs font-bold transition"
                                 >
-                                  Войти
+                                  🔑 Войти
                                 </button>
                                 {currentProfile?.is_admin && (
                                   <>
+                                    <button 
+                                      onClick={() => handleChangePassword(profile)}
+                                      className="px-3 py-1 bg-purple-900/50 hover:bg-purple-900/80 rounded text-purple-300 text-xs font-bold transition"
+                                    >
+                                       Сменить пароль
+                                    </button>
                                     <button 
                                       onClick={() => handleToggleAdmin(profile)}
                                       className={`px-3 py-1 rounded text-xs font-bold transition ${
@@ -403,7 +458,7 @@ export default function SettingsPanel({
                 {/* Создание нового профиля (только для админа) */}
                 {currentProfile?.is_admin && (
                   <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                    <p className="text-sm text-gray-400 font-bold"> Создать новый профиль (только для администратора):</p>
+                    <p className="text-sm text-gray-400 font-bold">➕ Создать новый профиль (только для администратора):</p>
                     
                     <div>
                       <label className="block text-sm text-gray-400 mb-1">Имя профиля:</label>
@@ -412,6 +467,17 @@ export default function SettingsPanel({
                         value={newProfileName}
                         onChange={(e) => setNewProfileName(e.target.value)}
                         placeholder="Например: Иван"
+                        className="w-full px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Пароль (мин. 4 символа):</label>
+                      <input 
+                        type="password"
+                        value={newProfilePassword}
+                        onChange={(e) => setNewProfilePassword(e.target.value)}
+                        placeholder="••••••"
                         className="w-full px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
                       />
                     </div>
@@ -436,7 +502,7 @@ export default function SettingsPanel({
                     {profileMessage && (
                       <div className={`p-3 rounded-lg text-sm ${
                         profileMessage.includes('✅') ? 'bg-green-900/30 border border-green-700/50 text-green-300' :
-                        profileMessage.includes('') ? 'bg-red-900/30 border border-red-700/50 text-red-300' :
+                        profileMessage.includes('❌') ? 'bg-red-900/30 border border-red-700/50 text-red-300' :
                         'bg-blue-900/30 border border-blue-700/50 text-blue-300'
                       }`}>
                         {profileMessage}
@@ -653,6 +719,93 @@ export default function SettingsPanel({
           </div>
         </div>
       </div>
+
+      {/* ========================================== */}
+      {/* МОДАЛКА ВВОДА ПАРОЛЯ (z-[310])             */}
+      {/* ========================================== */}
+      {showPasswordModal && selectedProfileForLogin && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[310] p-4">
+          <div className="bg-gray-900 border-2 border-blue-700/50 rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-blue-400">🔑 Вход в профиль</h3>
+                <button 
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setSelectedProfileForLogin(null);
+                    setLoginPassword('');
+                    setLoginError('');
+                  }}
+                  className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4 mb-6 p-4 bg-black/40 border border-red-900/30 rounded-xl">
+                <div 
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black text-white flex-shrink-0" 
+                  style={{ backgroundColor: selectedProfileForLogin.avatar_color || '#ef4444' }}
+                >
+                  {selectedProfileForLogin.name?.charAt(0).toUpperCase() || '?'}
+                </div>
+                <div>
+                  <p className="text-white font-bold text-lg">{selectedProfileForLogin.name}</p>
+                  {selectedProfileForLogin.is_admin && (
+                    <p className="text-xs text-red-400">👑 Администратор</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Введи пароль:</label>
+                  <input 
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      setLoginError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleConfirmLogin();
+                    }}
+                    placeholder="••••••"
+                    className="w-full px-4 py-3 bg-black/60 border-2 border-red-900/30 rounded-lg text-white text-base focus:outline-none focus:border-blue-700 placeholder-gray-500"
+                    autoFocus
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-red-300 text-sm">
+                    {loginError}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleConfirmLogin}
+                    className="flex-1 px-4 py-3 bg-blue-700 hover:bg-blue-600 rounded-lg text-white font-bold transition"
+                  >
+                    ✓ Войти
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setSelectedProfileForLogin(null);
+                      setLoginPassword('');
+                      setLoginError('');
+                    }}
+                    className="px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold transition"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================== */}
       {/* ПОДПАНЕЛИ (z-[300])                        */}

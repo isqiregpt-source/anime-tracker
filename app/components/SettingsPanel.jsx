@@ -25,34 +25,28 @@ export default function SettingsPanel({
   const [showImport, setShowImport] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   
-  // Фон
   const [bgStart, setBgStart] = useState(localStorage.getItem('gradientStart') || '#000000');
   const [bgEnd, setBgEnd] = useState(localStorage.getItem('gradientEnd') || '#1a0000');
 
-  // Папки
   const [categories, setCategories] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('');
 
-  // Теги
   const [tags, setTags] = useState([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#ef4444');
 
-  // Профили
   const [allProfiles, setAllProfiles] = useState([]);
   const [newProfileName, setNewProfileName] = useState('');
   const [newProfileColor, setNewProfileColor] = useState('#ef4444');
   const [newProfilePassword, setNewProfilePassword] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
 
-  // Модалка ввода пароля
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [selectedProfileForLogin, setSelectedProfileForLogin] = useState(null);
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // Загрузка данных при открытии
   useEffect(() => {
     setCategories(getAllCategories());
     loadTags();
@@ -73,23 +67,27 @@ export default function SettingsPanel({
     localStorage.setItem('customTags', JSON.stringify(newTags));
   };
 
-  const loadAllProfiles = () => {
+  const loadAllProfiles = async () => {
+    console.log('🔄 Загрузка профилей из Supabase...');
     try {
-      const saved = localStorage.getItem('allProfiles');
-      const profiles = saved ? JSON.parse(saved) : [];
-      
-      if (currentProfile && !profiles.find(p => p.id === currentProfile.id)) {
-        profiles.push(currentProfile);
-        localStorage.setItem('allProfiles', JSON.stringify(profiles));
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('❌ Ошибка загрузки профилей:', error);
+        setAllProfiles([]);
+      } else {
+        console.log('✅ Профили из Supabase:', data);
+        setAllProfiles(data || []);
       }
-      
-      setAllProfiles(profiles);
-    } catch {
-      setAllProfiles(currentProfile ? [currentProfile] : []);
+    } catch (e) {
+      console.error('💥 Критическая ошибка:', e);
+      setAllProfiles([]);
     }
   };
 
-  // ===== ФОН =====
   const handleBgChange = () => {
     localStorage.setItem('gradientStart', bgStart);
     localStorage.setItem('gradientEnd', bgEnd);
@@ -106,7 +104,6 @@ export default function SettingsPanel({
     document.body.style.backgroundAttachment = 'fixed';
   };
 
-  // ===== ПАПКИ =====
   const handleAddCategory = () => {
     if (!newCategoryName.trim()) {
       alert('Введи название папки!');
@@ -149,7 +146,6 @@ export default function SettingsPanel({
     if (activeCategory === catId) setActiveCategory('watching');
   };
 
-  // ===== ТЕГИ =====
   const handleAddTag = () => {
     if (!newTagName.trim()) {
       alert('Введи название тега!');
@@ -181,23 +177,15 @@ export default function SettingsPanel({
     });
   };
 
-  // ===== ПРОФИЛИ =====
-  const handleCreateProfile = () => {
+  const handleCreateProfile = async () => {
     if (!newProfileName.trim()) {
-      setProfileMessage(' Введи имя профиля!');
+      setProfileMessage('❌ Введи имя профиля!');
       return;
     }
-    
-    if (!newProfilePassword.trim()) {
-      setProfileMessage('❌ Введи пароль для профиля!');
-      return;
-    }
-
-    if (newProfilePassword.length < 4) {
+    if (!newProfilePassword.trim() || newProfilePassword.length < 4) {
       setProfileMessage('❌ Пароль должен быть минимум 4 символа!');
       return;
     }
-    
     if (allProfiles.find(p => p.name.toLowerCase() === newProfileName.trim().toLowerCase())) {
       setProfileMessage('❌ Профиль с таким именем уже существует!');
       return;
@@ -207,18 +195,29 @@ export default function SettingsPanel({
       id: `profile_${Date.now()}`,
       name: newProfileName.trim(),
       avatar_color: newProfileColor,
-      password: newProfilePassword, // Храним пароль (для локального приложения)
+      password: newProfilePassword,
       is_admin: false,
       created_at: new Date().toISOString()
     };
 
-    const updated = [...allProfiles, newProfile];
-    localStorage.setItem('allProfiles', JSON.stringify(updated));
-    setAllProfiles(updated);
-    setNewProfileName('');
-    setNewProfilePassword('');
-    setNewProfileColor('#ef4444');
-    setProfileMessage(`✅ Профиль "${newProfile.name}" создан!`);
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert(newProfile)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Ошибка создания профиля:', error);
+      setProfileMessage(`❌ Ошибка: ${error.message}`);
+    } else {
+      console.log('✅ Профиль создан в Supabase:', data);
+      const updated = [...allProfiles, data];
+      setAllProfiles(updated);
+      setNewProfileName('');
+      setNewProfilePassword('');
+      setNewProfileColor('#ef4444');
+      setProfileMessage(`✅ Профиль "${data.name}" создан!`);
+    }
   };
 
   const handleRequestLogin = (profile) => {
@@ -236,7 +235,6 @@ export default function SettingsPanel({
     if (!selectedProfileForLogin) return;
 
     if (loginPassword === selectedProfileForLogin.password) {
-      // Пароль верный — переключаемся
       localStorage.setItem('currentProfile', JSON.stringify(selectedProfileForLogin));
       setShowPasswordModal(false);
       setSelectedProfileForLogin(null);
@@ -248,32 +246,46 @@ export default function SettingsPanel({
     }
   };
 
-  const handleDeleteProfile = (profile) => {
+  const handleDeleteProfile = async (profile) => {
     if (profile.id === currentProfile?.id) {
       alert('Нельзя удалить текущий профиль! Сначала переключитесь на другой.');
       return;
     }
     if (!confirm(`Удалить профиль "${profile.name}"? Все данные этого профиля будут потеряны.`)) return;
     
+    const { error } = await supabase.from('profiles').delete().eq('id', profile.id);
+    if (error) {
+      alert(`Ошибка удаления: ${error.message}`);
+      return;
+    }
+    
     const updated = allProfiles.filter(p => p.id !== profile.id);
-    localStorage.setItem('allProfiles', JSON.stringify(updated));
     setAllProfiles(updated);
   };
 
-  const handleToggleAdmin = (profile) => {
+  const handleToggleAdmin = async (profile) => {
     if (profile.id === currentProfile?.id) {
       alert('Нельзя изменить права текущего профиля!');
+      return;
+    }
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_admin: !profile.is_admin })
+      .eq('id', profile.id);
+    
+    if (error) {
+      alert(`Ошибка: ${error.message}`);
       return;
     }
     
     const updated = allProfiles.map(p => 
       p.id === profile.id ? { ...p, is_admin: !p.is_admin } : p
     );
-    localStorage.setItem('allProfiles', JSON.stringify(updated));
     setAllProfiles(updated);
   };
 
-  const handleChangePassword = (profile) => {
+  const handleChangePassword = async (profile) => {
     const newPassword = prompt(`Введи новый пароль для профиля "${profile.name}":`);
     if (!newPassword) return;
     
@@ -282,15 +294,24 @@ export default function SettingsPanel({
       return;
     }
 
+    const { error } = await supabase
+      .from('profiles')
+      .update({ password: newPassword })
+      .eq('id', profile.id);
+    
+    if (error) {
+      alert(`Ошибка: ${error.message}`);
+      return;
+    }
+
     const updated = allProfiles.map(p => 
       p.id === profile.id ? { ...p, password: newPassword } : p
     );
-    localStorage.setItem('allProfiles', JSON.stringify(updated));
     setAllProfiles(updated);
     alert(`✅ Пароль для профиля "${profile.name}" изменён!`);
   };
 
-  const iconOptions = ['📁', '📂', '', '⭐', '', '💎', '🌟', '', '🎪', '', '🎵', '', '📚', '', '', '☀️', '', '', '', '🏆'];
+  const iconOptions = ['📁', '📂', '📚', '⭐', '', '🌟', '', '🎭', '🎪', '🎨', '🎵', '', '⚡', '🌙', '☀️', '', '🌸', '🏆', '🚀', '💫'];
 
   const tabs = [
     { id: 'profile', name: '👤 Профиль' },
@@ -303,13 +324,9 @@ export default function SettingsPanel({
 
   return (
     <>
-      {/* ========================================== */}
-      {/* ОСНОВНАЯ ПАНЕЛЬ НАСТРОЕК (z-[250])         */}
-      {/* ========================================== */}
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[250] p-4">
         <div className="bg-gray-900 border border-red-900/50 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl relative flex flex-col">
           
-          {/* Заголовок */}
           <div className="p-5 border-b border-red-900/30 flex items-center justify-between flex-shrink-0 bg-gray-900">
             <h2 className="text-2xl font-bold text-red-400">⚙️ Настройки</h2>
             <button 
@@ -320,7 +337,6 @@ export default function SettingsPanel({
             </button>
           </div>
 
-          {/* Вкладки */}
           <div className="flex flex-wrap gap-1 p-3 border-b border-red-900/20 bg-black/30 flex-shrink-0">
             {tabs.map(tab => (
               <button
@@ -337,10 +353,8 @@ export default function SettingsPanel({
             ))}
           </div>
 
-          {/* Содержимое */}
           <div className="p-6 overflow-y-auto flex-1">
             
-            {/* ===== ПРОФИЛЬ ===== */}
             {activeTab === 'profile' && (
               <div className="space-y-4">
                 <h3 className="text-lg font-bold text-white mb-3">👤 Текущий профиль</h3>
@@ -368,12 +382,10 @@ export default function SettingsPanel({
               </div>
             )}
 
-            {/* ===== УПРАВЛЕНИЕ ПРОФИЛЯМИ ===== */}
             {activeTab === 'accounts' && (
               <div className="space-y-4">
                 <h3 className="text-lg font-bold text-white mb-3">👥 Управление профилями</h3>
                 
-                {/* Список всех профилей */}
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl">
                   <p className="text-sm text-gray-400 font-bold mb-3">Все профили ({allProfiles.length}):</p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -426,7 +438,7 @@ export default function SettingsPanel({
                                       onClick={() => handleChangePassword(profile)}
                                       className="px-3 py-1 bg-purple-900/50 hover:bg-purple-900/80 rounded text-purple-300 text-xs font-bold transition"
                                     >
-                                       Сменить пароль
+                                      🔒 Сменить пароль
                                     </button>
                                     <button 
                                       onClick={() => handleToggleAdmin(profile)}
@@ -455,7 +467,6 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                {/* Создание нового профиля (только для админа) */}
                 {currentProfile?.is_admin && (
                   <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
                     <p className="text-sm text-gray-400 font-bold">➕ Создать новый профиль (только для администратора):</p>
@@ -521,7 +532,6 @@ export default function SettingsPanel({
               </div>
             )}
 
-            {/* ===== ФОН ===== */}
             {activeTab === 'appearance' && (
               <div className="space-y-4">
                 <h3 className="text-lg font-bold text-white mb-3">🎨 Цвет фона</h3>
@@ -566,7 +576,6 @@ export default function SettingsPanel({
               </div>
             )}
 
-            {/* ===== ПАПКИ ===== */}
             {activeTab === 'folders' && (
               <div className="space-y-4">
                 <h3 className="text-lg font-bold text-white mb-3">📁 Управление папками</h3>
@@ -614,240 +623,4 @@ export default function SettingsPanel({
                         <span className="text-white font-medium truncate">{cat.name}</span>
                         <span className="text-gray-500 text-sm">({(animeLists[cat.id] || []).length})</span>
                         {cat.isCustom && (
-                          <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700/50 rounded text-xs text-blue-300">custom</span>
-                        )}
-                      </div>
-                      {!isDefaultCategory(cat.id) && (
-                        <button 
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          className="ml-2 px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
-                        >
-                          Удалить
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ===== ТЕГИ ===== */}
-            {activeTab === 'tags' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">🏷️ Управление тегами</h3>
-                
-                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                  <p className="text-sm text-gray-400 font-bold">Добавить новый тег:</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="color"
-                      value={newTagColor}
-                      onChange={(e) => setNewTagColor(e.target.value)}
-                      className="w-12 h-10 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
-                    />
-                    <input 
-                      type="text"
-                      value={newTagName}
-                      onChange={(e) => setNewTagName(e.target.value)}
-                      placeholder="Название тега"
-                      className="flex-1 px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
-                    />
-                    <button 
-                      onClick={handleAddTag}
-                      className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {tags.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">Нет пользовательских тегов</p>
-                  ) : (
-                    tags.map(tag => (
-                      <div 
-                        key={tag.id} 
-                        className="flex items-center justify-between p-3 bg-black/40 border border-red-900/30 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }}></div>
-                          <span className="text-white font-medium">{tag.name}</span>
-                        </div>
-                        <button 
-                          onClick={() => handleDeleteTag(tag.id)}
-                          className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ===== ИНСТРУМЕНТЫ ===== */}
-            {activeTab === 'tools' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">🛠️ Инструменты</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button 
-                    onClick={() => setShowImport(true)}
-                    className="px-4 py-4 bg-blue-900/30 hover:bg-blue-900/50 border border-blue-700/50 rounded-lg text-blue-200 font-bold transition text-left flex items-center gap-3"
-                  >
-                    <span className="text-2xl">📊</span>
-                    <div>
-                      <p className="font-bold">Импорт из Excel/CSV</p>
-                      <p className="text-xs text-blue-300/70">Массовое добавление аниме</p>
-                    </div>
-                  </button>
-                  <button 
-                    onClick={() => setShowCoverSearch(true)}
-                    className="px-4 py-4 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/50 rounded-lg text-purple-200 font-bold transition text-left flex items-center gap-3"
-                  >
-                    <span className="text-2xl">️</span>
-                    <div>
-                      <p className="font-bold">Найти обложки</p>
-                      <p className="text-xs text-purple-300/70">Автоматический поиск постеров</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================== */}
-      {/* МОДАЛКА ВВОДА ПАРОЛЯ (z-[310])             */}
-      {/* ========================================== */}
-      {showPasswordModal && selectedProfileForLogin && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[310] p-4">
-          <div className="bg-gray-900 border-2 border-blue-700/50 rounded-2xl max-w-md w-full shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-blue-400">🔑 Вход в профиль</h3>
-                <button 
-                  onClick={() => {
-                    setShowPasswordModal(false);
-                    setSelectedProfileForLogin(null);
-                    setLoginPassword('');
-                    setLoginError('');
-                  }}
-                  className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="flex items-center gap-4 mb-6 p-4 bg-black/40 border border-red-900/30 rounded-xl">
-                <div 
-                  className="w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black text-white flex-shrink-0" 
-                  style={{ backgroundColor: selectedProfileForLogin.avatar_color || '#ef4444' }}
-                >
-                  {selectedProfileForLogin.name?.charAt(0).toUpperCase() || '?'}
-                </div>
-                <div>
-                  <p className="text-white font-bold text-lg">{selectedProfileForLogin.name}</p>
-                  {selectedProfileForLogin.is_admin && (
-                    <p className="text-xs text-red-400">👑 Администратор</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Введи пароль:</label>
-                  <input 
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => {
-                      setLoginPassword(e.target.value);
-                      setLoginError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleConfirmLogin();
-                    }}
-                    placeholder="••••••"
-                    className="w-full px-4 py-3 bg-black/60 border-2 border-red-900/30 rounded-lg text-white text-base focus:outline-none focus:border-blue-700 placeholder-gray-500"
-                    autoFocus
-                  />
-                </div>
-
-                {loginError && (
-                  <div className="p-3 bg-red-900/30 border border-red-700/50 rounded-lg text-red-300 text-sm">
-                    {loginError}
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button 
-                    onClick={handleConfirmLogin}
-                    className="flex-1 px-4 py-3 bg-blue-700 hover:bg-blue-600 rounded-lg text-white font-bold transition"
-                  >
-                    ✓ Войти
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setShowPasswordModal(false);
-                      setSelectedProfileForLogin(null);
-                      setLoginPassword('');
-                      setLoginError('');
-                    }}
-                    className="px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold transition"
-                  >
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* ПОДПАНЕЛИ (z-[300])                        */}
-      {/* ========================================== */}
-      
-      {showImport && (
-        <div className="fixed inset-0 z-[300]">
-          <ExcelImport 
-            onClose={() => setShowImport(false)} 
-            onImportComplete={() => {
-              setShowImport(false);
-              if (onImportComplete) onImportComplete();
-            }}
-            currentProfile={currentProfile}
-            activeCategory={activeCategory}
-            animeLists={animeLists}
-            setAnimeLists={setAnimeLists}
-          />
-        </div>
-      )}
-
-      {showCoverSearch && (
-        <div className="fixed inset-0 z-[300]">
-          <CoverSearch 
-            onClose={() => setShowCoverSearch(false)} 
-            animeList={Object.values(animeLists).flat()}
-            onUpdateAnime={(animeId, updatedData) => {
-              setAnimeLists(prev => {
-                const newList = { ...prev };
-                for (const cat in newList) {
-                  const index = (newList[cat] || []).findIndex(a => a.id === animeId);
-                  if (index !== -1) {
-                    newList[cat][index] = { ...newList[cat][index], ...updatedData };
-                    break;
-                  }
-                }
-                return newList;
-              });
-            }}
-          />
-        </div>
-      )}
-    </>
-  );
-}
+                          <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700/50 rounded text-xs text

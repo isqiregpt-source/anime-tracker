@@ -39,13 +39,11 @@ export default function SettingsPanel({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#ef4444');
 
-  // Аккаунты
+  // Профили
   const [allProfiles, setAllProfiles] = useState([]);
-  const [newAccountName, setNewAccountName] = useState('');
-  const [newAccountEmail, setNewAccountEmail] = useState('');
-  const [newAccountPassword, setNewAccountPassword] = useState('');
-  const [newAccountColor, setNewAccountColor] = useState('#ef4444');
-  const [accountMessage, setAccountMessage] = useState('');
+  const [newProfileName, setNewProfileName] = useState('');
+  const [newProfileColor, setNewProfileColor] = useState('#ef4444');
+  const [profileMessage, setProfileMessage] = useState('');
 
   // Загрузка данных при открытии
   useEffect(() => {
@@ -73,11 +71,13 @@ export default function SettingsPanel({
     try {
       const saved = localStorage.getItem('allProfiles');
       const profiles = saved ? JSON.parse(saved) : [];
+      
       // Если текущего профиля нет в списке, добавляем его
       if (currentProfile && !profiles.find(p => p.id === currentProfile.id)) {
         profiles.push(currentProfile);
         localStorage.setItem('allProfiles', JSON.stringify(profiles));
       }
+      
       setAllProfiles(profiles);
     } catch {
       setAllProfiles(currentProfile ? [currentProfile] : []);
@@ -176,39 +176,33 @@ export default function SettingsPanel({
     });
   };
 
-  // ===== АККАУНТЫ =====
-  const handleCreateAccount = async () => {
-    if (!newAccountName.trim() || !newAccountEmail.trim() || !newAccountPassword.trim()) {
-      setAccountMessage('❌ Заполни все поля!');
+  // ===== ПРОФИЛИ =====
+  const handleCreateProfile = () => {
+    if (!newProfileName.trim()) {
+      setProfileMessage('❌ Введи имя профиля!');
       return;
     }
-    if (newAccountPassword.length < 6) {
-      setAccountMessage('❌ Пароль должен быть минимум 6 символов!');
-      return;
-    }
-
-    setAccountMessage('⏳ Создание аккаунта...');
     
-    const { data, error } = await supabase.auth.signUp({
-      email: newAccountEmail,
-      password: newAccountPassword,
-      options: {
-        data: {
-          name: newAccountName,
-          avatar_color: newAccountColor
-        }
-      }
-    });
-
-    if (error) {
-      setAccountMessage(`❌ Ошибка: ${error.message}`);
-    } else {
-      setAccountMessage('✅ Аккаунт создан! Пользователь должен подтвердить email.');
-      setNewAccountName('');
-      setNewAccountEmail('');
-      setNewAccountPassword('');
-      loadAllProfiles();
+    // Проверяем, нет ли уже такого профиля
+    if (allProfiles.find(p => p.name.toLowerCase() === newProfileName.trim().toLowerCase())) {
+      setProfileMessage('❌ Профиль с таким именем уже существует!');
+      return;
     }
+
+    const newProfile = {
+      id: `profile_${Date.now()}`,
+      name: newProfileName.trim(),
+      avatar_color: newProfileColor,
+      is_admin: false,
+      created_at: new Date().toISOString()
+    };
+
+    const updated = [...allProfiles, newProfile];
+    localStorage.setItem('allProfiles', JSON.stringify(updated));
+    setAllProfiles(updated);
+    setNewProfileName('');
+    setNewProfileColor('#ef4444');
+    setProfileMessage(`✅ Профиль "${newProfile.name}" создан!`);
   };
 
   const handleSwitchProfile = (profile) => {
@@ -224,21 +218,34 @@ export default function SettingsPanel({
 
   const handleDeleteProfile = (profile) => {
     if (profile.id === currentProfile?.id) {
-      alert('Нельзя удалить текущий профиль!');
+      alert('Нельзя удалить текущий профиль! Сначала переключитесь на другой.');
       return;
     }
-    if (!confirm(`Удалить профиль "${profile.name}"? Это действие нельзя отменить.`)) return;
+    if (!confirm(`Удалить профиль "${profile.name}"? Все данные этого профиля будут потеряны.`)) return;
     
     const updated = allProfiles.filter(p => p.id !== profile.id);
     localStorage.setItem('allProfiles', JSON.stringify(updated));
     setAllProfiles(updated);
   };
 
-  const iconOptions = ['📁', '📂', '', '⭐', '', '💎', '🌟', '🎭', '🎪', '', '🎵', '', '📚', '⚡', '🌙', '☀️', '', '🌸', '', '🏆'];
+  const handleToggleAdmin = (profile) => {
+    if (profile.id === currentProfile?.id) {
+      alert('Нельзя изменить права текущего профиля!');
+      return;
+    }
+    
+    const updated = allProfiles.map(p => 
+      p.id === profile.id ? { ...p, is_admin: !p.is_admin } : p
+    );
+    localStorage.setItem('allProfiles', JSON.stringify(updated));
+    setAllProfiles(updated);
+  };
+
+  const iconOptions = ['📁', '📂', '', '⭐', '', '💎', '🌟', '', '🎪', '', '🎵', '', '📚', '', '🌙', '☀️', '', '🌸', '', '🏆'];
 
   const tabs = [
     { id: 'profile', name: '👤 Профиль' },
-    { id: 'accounts', name: '👥 Управление профилями' },
+    { id: 'accounts', name: '👥 Профили' },
     { id: 'appearance', name: '🎨 Фон' },
     { id: 'folders', name: '📁 Папки' },
     { id: 'tags', name: '🏷️ Теги' },
@@ -260,7 +267,7 @@ export default function SettingsPanel({
               onClick={onClose} 
               className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
             >
-              ✕
+              
             </button>
           </div>
 
@@ -299,7 +306,7 @@ export default function SettingsPanel({
                     <p className="text-white font-bold text-lg truncate">{currentProfile?.name}</p>
                     <p className="text-gray-400 text-sm">ID: {currentProfile?.id}</p>
                     {currentProfile?.is_admin && (
-                      <p className="text-xs text-red-400 font-medium mt-1">Администратор</p>
+                      <p className="text-xs text-red-400 font-medium mt-1">👑 Администратор</p>
                     )}
                   </div>
                 </div>
@@ -307,7 +314,7 @@ export default function SettingsPanel({
                   onClick={onLogout} 
                   className="w-full px-4 py-3 bg-red-900/50 hover:bg-red-900/80 border border-red-700/50 rounded-lg text-red-200 font-bold transition"
                 >
-                  🚪 Выйти из аккаунта
+                  🚪 Выйти (выбрать другой профиль)
                 </button>
               </div>
             )}
@@ -322,7 +329,7 @@ export default function SettingsPanel({
                   <p className="text-sm text-gray-400 font-bold mb-3">Все профили ({allProfiles.length}):</p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {allProfiles.length === 0 ? (
-                      <p className="text-gray-500 text-sm text-center py-4">Нет сохранённых профилей</p>
+                      <p className="text-gray-500 text-sm text-center py-4">Нет профилей</p>
                     ) : (
                       allProfiles.map(profile => (
                         <div 
@@ -349,6 +356,11 @@ export default function SettingsPanel({
                                 ✓ Активен
                               </span>
                             )}
+                            {profile.is_admin && profile.id !== currentProfile?.id && (
+                              <span className="px-2 py-1 bg-red-900/50 border border-red-700/50 rounded text-xs text-red-300 font-bold">
+                                👑 Админ
+                              </span>
+                            )}
                           </div>
                           <div className="flex gap-2 ml-3">
                             {profile.id !== currentProfile?.id && (
@@ -357,14 +369,28 @@ export default function SettingsPanel({
                                   onClick={() => handleSwitchProfile(profile)}
                                   className="px-3 py-1 bg-blue-900/50 hover:bg-blue-900/80 rounded text-blue-300 text-xs font-bold transition"
                                 >
-                                  Переключить
+                                  Войти
                                 </button>
-                                <button 
-                                  onClick={() => handleDeleteProfile(profile)}
-                                  className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
-                                >
-                                  Удалить
-                                </button>
+                                {currentProfile?.is_admin && (
+                                  <>
+                                    <button 
+                                      onClick={() => handleToggleAdmin(profile)}
+                                      className={`px-3 py-1 rounded text-xs font-bold transition ${
+                                        profile.is_admin 
+                                          ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
+                                          : 'bg-yellow-900/50 hover:bg-yellow-900/80 text-yellow-300'
+                                      }`}
+                                    >
+                                      {profile.is_admin ? 'Убрать админа' : 'Сделать админом'}
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeleteProfile(profile)}
+                                      className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                                    >
+                                      Удалить
+                                    </button>
+                                  </>
+                                )}
                               </>
                             )}
                           </div>
@@ -374,76 +400,58 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                {/* Создание нового аккаунта */}
-                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                  <p className="text-sm text-gray-400 font-bold">Создать новый аккаунт:</p>
-                  
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Имя пользователя:</label>
-                    <input 
-                      type="text"
-                      value={newAccountName}
-                      onChange={(e) => setNewAccountName(e.target.value)}
-                      placeholder="Например: Иван"
-                      className="w-full px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Email:</label>
-                    <input 
-                      type="email"
-                      value={newAccountEmail}
-                      onChange={(e) => setNewAccountEmail(e.target.value)}
-                      placeholder="user@example.com"
-                      className="w-full px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Пароль (мин. 6 символов):</label>
-                    <input 
-                      type="password"
-                      value={newAccountPassword}
-                      onChange={(e) => setNewAccountPassword(e.target.value)}
-                      placeholder="••••••"
-                      className="w-full px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Цвет аватара:</label>
-                    <input 
-                      type="color"
-                      value={newAccountColor}
-                      onChange={(e) => setNewAccountColor(e.target.value)}
-                      className="w-full h-10 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
-                    />
-                  </div>
-                  
-                  <button 
-                    onClick={handleCreateAccount}
-                    className="w-full px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded-lg text-white font-bold transition"
-                  >
-                    ➕ Создать аккаунт
-                  </button>
-                  
-                  {accountMessage && (
-                    <div className={`p-3 rounded-lg text-sm ${
-                      accountMessage.includes('✅') ? 'bg-green-900/30 border border-green-700/50 text-green-300' :
-                      accountMessage.includes('❌') ? 'bg-red-900/30 border border-red-700/50 text-red-300' :
-                      'bg-blue-900/30 border border-blue-700/50 text-blue-300'
-                    }`}>
-                      {accountMessage}
+                {/* Создание нового профиля (только для админа) */}
+                {currentProfile?.is_admin && (
+                  <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
+                    <p className="text-sm text-gray-400 font-bold"> Создать новый профиль (только для администратора):</p>
+                    
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Имя профиля:</label>
+                      <input 
+                        type="text"
+                        value={newProfileName}
+                        onChange={(e) => setNewProfileName(e.target.value)}
+                        placeholder="Например: Иван"
+                        className="w-full px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
+                      />
                     </div>
-                  )}
-                </div>
+                    
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Цвет аватара:</label>
+                      <input 
+                        type="color"
+                        value={newProfileColor}
+                        onChange={(e) => setNewProfileColor(e.target.value)}
+                        className="w-full h-10 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
+                      />
+                    </div>
+                    
+                    <button 
+                      onClick={handleCreateProfile}
+                      className="w-full px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white font-bold transition"
+                    >
+                      ➕ Создать профиль
+                    </button>
+                    
+                    {profileMessage && (
+                      <div className={`p-3 rounded-lg text-sm ${
+                        profileMessage.includes('✅') ? 'bg-green-900/30 border border-green-700/50 text-green-300' :
+                        profileMessage.includes('') ? 'bg-red-900/30 border border-red-700/50 text-red-300' :
+                        'bg-blue-900/30 border border-blue-700/50 text-blue-300'
+                      }`}>
+                        {profileMessage}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-xl">
-                  <p className="text-sm text-yellow-300">
-                    <strong>⚠️ Важно:</strong> Созданный пользователь должен подтвердить свой email, прежде чем сможет войти в систему.
-                  </p>
-                </div>
+                {!currentProfile?.is_admin && (
+                  <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-xl">
+                    <p className="text-sm text-yellow-300">
+                      <strong>⚠️ Только администратор</strong> может создавать новые профили и управлять правами.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -495,7 +503,7 @@ export default function SettingsPanel({
             {/* ===== ПАПКИ ===== */}
             {activeTab === 'folders' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3"> Управление папками</h3>
+                <h3 className="text-lg font-bold text-white mb-3">📁 Управление папками</h3>
                 
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
                   <p className="text-sm text-gray-400 font-bold">Добавить новую папку:</p>

@@ -149,7 +149,7 @@ export default function AnimeCard({
           isSelected ? 'border-yellow-500 bg-yellow-900/10' : 'border-red-900/30 hover:border-red-700/50'
         } ${!selectMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
-        {/* АНИМИРОВАННАЯ КНОПКА УДАЛЕНИЯ СПРАВА ВВЕРХУ */}
+        {/* АНИМИРОВАННАЯ КНОПКА УДАЛЕНИЯ - ПРАВЫЙ ВЕРХНИЙ УГОЛ */}
         {!selectMode && (
           <button
             onClick={(e) => {
@@ -263,26 +263,44 @@ export default function AnimeCard({
             </button>
           </div>
         </div>
+
+        {/* КНОПКА МЕНЮ (ТРИ ТОЧКИ) - ПРАВЫЙ НИЖНИЙ УГОЛ */}
+        {!selectMode && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setMenuPosition({ 
+                x: rect.left - 220, 
+                y: rect.top - 10 
+              });
+              setShowContextMenu(true);
+            }}
+            className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-black/60 border border-red-900/50 flex items-center justify-center text-gray-400 hover:bg-red-900/50 hover:text-white transition-all duration-300 z-30 active:scale-95 shadow-lg"
+            title="Меню карточки"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {/* Контекстное меню (Правая кнопка мыши) */}
+      {/* Контекстное меню (открывается по кнопке или ПКМ) */}
       {showContextMenu && (
-  <>
-    <div className="fixed inset-0 z-40" onClick={() => setShowContextMenu(false)} />
-    <div 
-      className="fixed z-50 bg-gray-900 border border-red-900/50 rounded-xl shadow-2xl overflow-hidden animate-fade-in min-w-[220px]"
-      style={{
-        top: menuPosition.y + 300 > window.innerHeight ? undefined : menuPosition.y,
-        bottom: menuPosition.y + 300 > window.innerHeight ? window.innerHeight - menuPosition.y : undefined,
-        left: menuPosition.x + 250 > window.innerWidth ? undefined : menuPosition.x,
-        right: menuPosition.x + 250 > window.innerWidth ? window.innerWidth - menuPosition.x : undefined,
-        maxHeight: '70vh',
-        overflowY: 'auto'
-      }}
-    >
-      
-          
-          
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowContextMenu(false)} />
+          <div 
+            className="fixed z-50 bg-gray-900 border border-red-900/50 rounded-xl shadow-2xl overflow-hidden animate-fade-in min-w-[220px]"
+            style={{
+              top: menuPosition.y + 300 > window.innerHeight ? undefined : menuPosition.y,
+              bottom: menuPosition.y + 300 > window.innerHeight ? window.innerHeight - menuPosition.y : undefined,
+              left: menuPosition.x + 250 > window.innerWidth ? undefined : menuPosition.x,
+              right: menuPosition.x + 250 > window.innerWidth ? window.innerWidth - menuPosition.x : undefined,
+              maxHeight: '70vh',
+              overflowY: 'auto'
+            }}
+          >
             <div className="p-2 min-w-[200px]">
               <button onClick={() => { setIsEditing(true); setShowContextMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2">✏️ Редактировать</button>
               
@@ -306,7 +324,7 @@ export default function AnimeCard({
                 { id: 'planned', name: '📌 Запланированные' },
                 { id: 'on_hold', name: '⏸️ Ожидаю' },
                 { id: 'dropped', name: '🗑️ Заброшенные' },
-                { id: 'closed', name: '🚫 Закрытые' }
+                { id: 'closed', name: ' Закрытые' }
               ].filter(c => c.id !== anime.category_id).map((item) => (
                 <button key={item.id} onClick={() => { onMove(anime.id, item.id); setShowContextMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition">
                   {item.name}

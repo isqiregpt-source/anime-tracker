@@ -40,6 +40,7 @@ export default function SettingsPanel({
   const [newTagColor, setNewTagColor] = useState('#ef4444');
 
   // Аккаунты
+  const [allProfiles, setAllProfiles] = useState([]);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountEmail, setNewAccountEmail] = useState('');
   const [newAccountPassword, setNewAccountPassword] = useState('');
@@ -50,6 +51,7 @@ export default function SettingsPanel({
   useEffect(() => {
     setCategories(getAllCategories());
     loadTags();
+    loadAllProfiles();
   }, []);
 
   const loadTags = () => {
@@ -64,6 +66,22 @@ export default function SettingsPanel({
   const saveTags = (newTags) => {
     setTags(newTags);
     localStorage.setItem('customTags', JSON.stringify(newTags));
+  };
+
+  // Загрузка всех профилей из localStorage
+  const loadAllProfiles = () => {
+    try {
+      const saved = localStorage.getItem('allProfiles');
+      const profiles = saved ? JSON.parse(saved) : [];
+      // Если текущего профиля нет в списке, добавляем его
+      if (currentProfile && !profiles.find(p => p.id === currentProfile.id)) {
+        profiles.push(currentProfile);
+        localStorage.setItem('allProfiles', JSON.stringify(profiles));
+      }
+      setAllProfiles(profiles);
+    } catch {
+      setAllProfiles(currentProfile ? [currentProfile] : []);
+    }
   };
 
   // ===== ФОН =====
@@ -108,7 +126,6 @@ export default function SettingsPanel({
     }
     if (!confirm(`Удалить папку "${categories.find(c => c.id === catId)?.name}"?`)) return;
     
-    // Перемещаем аниме из удаляемой папки в "Запланированные"
     const catAnime = animeLists[catId] || [];
     if (catAnime.length > 0) {
       catAnime.forEach(anime => {
@@ -147,7 +164,6 @@ export default function SettingsPanel({
     if (!confirm('Удалить этот тег?')) return;
     saveTags(tags.filter(t => t.id !== tagId));
     
-    // Удаляем тег из всех аниме
     Object.keys(animeLists).forEach(catId => {
       const updated = (animeLists[catId] || []).map(anime => ({
         ...anime,
@@ -171,7 +187,7 @@ export default function SettingsPanel({
       return;
     }
 
-    setAccountMessage(' Создание аккаунта...');
+    setAccountMessage('⏳ Создание аккаунта...');
     
     const { data, error } = await supabase.auth.signUp({
       email: newAccountEmail,
@@ -191,17 +207,41 @@ export default function SettingsPanel({
       setNewAccountName('');
       setNewAccountEmail('');
       setNewAccountPassword('');
+      loadAllProfiles();
     }
   };
 
-  const iconOptions = ['📁', '📂', '', '⭐', '🔥', '', '🌟', '🎭', '🎪', '🎨', '', '🎮', '📚', '⚡', '🌙', '☀️', '🌊', '', '🚀', ''];
+  const handleSwitchProfile = (profile) => {
+    if (profile.id === currentProfile?.id) {
+      alert('Вы уже используете этот профиль!');
+      return;
+    }
+    if (confirm(`Переключиться на профиль "${profile.name}"?`)) {
+      localStorage.setItem('currentProfile', JSON.stringify(profile));
+      window.location.reload();
+    }
+  };
+
+  const handleDeleteProfile = (profile) => {
+    if (profile.id === currentProfile?.id) {
+      alert('Нельзя удалить текущий профиль!');
+      return;
+    }
+    if (!confirm(`Удалить профиль "${profile.name}"? Это действие нельзя отменить.`)) return;
+    
+    const updated = allProfiles.filter(p => p.id !== profile.id);
+    localStorage.setItem('allProfiles', JSON.stringify(updated));
+    setAllProfiles(updated);
+  };
+
+  const iconOptions = ['📁', '📂', '', '⭐', '', '💎', '🌟', '🎭', '🎪', '', '🎵', '', '📚', '⚡', '🌙', '☀️', '', '🌸', '', '🏆'];
 
   const tabs = [
-    { id: 'profile', name: ' Профиль' },
+    { id: 'profile', name: '👤 Профиль' },
+    { id: 'accounts', name: '👥 Управление профилями' },
     { id: 'appearance', name: '🎨 Фон' },
     { id: 'folders', name: '📁 Папки' },
     { id: 'tags', name: '🏷️ Теги' },
-    { id: 'accounts', name: '👥 Аккаунты' },
     { id: 'tools', name: '🛠️ Инструменты' },
   ];
 
@@ -272,185 +312,71 @@ export default function SettingsPanel({
               </div>
             )}
 
-            {/* ===== ФОН ===== */}
-            {activeTab === 'appearance' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">🎨 Цвет фона</h3>
-                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-4">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-2">Цвет начала градиента:</label>
-                    <input 
-                      type="color" 
-                      value={bgStart} 
-                      onChange={(e) => setBgStart(e.target.value)}
-                      className="w-full h-12 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-2">Цвет конца градиента:</label>
-                    <input 
-                      type="color" 
-                      value={bgEnd} 
-                      onChange={(e) => setBgEnd(e.target.value)}
-                      className="w-full h-12 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
-                    />
-                  </div>
-                  <div 
-                    className="h-20 rounded-lg border border-red-900/30"
-                    style={{ background: `linear-gradient(135deg, ${bgStart} 0%, ${bgEnd} 100%)` }}
-                  ></div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={handleBgChange}
-                      className="flex-1 px-4 py-2 bg-purple-900/50 hover:bg-purple-900/80 border border-purple-700/50 rounded-lg text-purple-200 font-bold transition"
-                    >
-                      ✓ Применить
-                    </button>
-                    <button 
-                      onClick={handleResetBg}
-                      className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold transition"
-                    >
-                      ↺ Сбросить
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ===== ПАПКИ ===== */}
-            {activeTab === 'folders' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">📁 Управление папками</h3>
-                
-                {/* Добавление папки */}
-                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                  <p className="text-sm text-gray-400 font-bold">Добавить новую папку:</p>
-                  <div className="flex gap-2">
-                    <select 
-                      value={newCategoryIcon}
-                      onChange={(e) => setNewCategoryIcon(e.target.value)}
-                      className="px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
-                    >
-                      {iconOptions.map(icon => (
-                        <option key={icon} value={icon}>{icon}</option>
-                      ))}
-                    </select>
-                    <input 
-                      type="text"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="Название папки"
-                      className="flex-1 px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
-                    />
-                    <button 
-                      onClick={handleAddCategory}
-                      className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Список папок */}
-                <div className="space-y-2">
-                  {categories.map(cat => (
-                    <div 
-                      key={cat.id} 
-                      className={`flex items-center justify-between p-3 rounded-lg border ${
-                        cat.id === activeCategory 
-                          ? 'bg-red-900/30 border-red-700/50' 
-                          : 'bg-black/40 border-red-900/30'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="text-xl">{cat.icon}</span>
-                        <span className="text-white font-medium truncate">{cat.name}</span>
-                        <span className="text-gray-500 text-sm">({(animeLists[cat.id] || []).length})</span>
-                        {cat.isCustom && (
-                          <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700/50 rounded text-xs text-blue-300">custom</span>
-                        )}
-                      </div>
-                      {!isDefaultCategory(cat.id) && (
-                        <button 
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          className="ml-2 px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
-                        >
-                          Удалить
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ===== ТЕГИ ===== */}
-            {activeTab === 'tags' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">️ Управление тегами</h3>
-                
-                {/* Добавление тега */}
-                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                  <p className="text-sm text-gray-400 font-bold">Добавить новый тег:</p>
-                  <div className="flex gap-2">
-                    <input 
-                      type="color"
-                      value={newTagColor}
-                      onChange={(e) => setNewTagColor(e.target.value)}
-                      className="w-12 h-10 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
-                    />
-                    <input 
-                      type="text"
-                      value={newTagName}
-                      onChange={(e) => setNewTagName(e.target.value)}
-                      placeholder="Название тега"
-                      className="flex-1 px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
-                    />
-                    <button 
-                      onClick={handleAddTag}
-                      className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Список тегов */}
-                <div className="space-y-2">
-                  {tags.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">Нет пользовательских тегов</p>
-                  ) : (
-                    tags.map(tag => (
-                      <div 
-                        key={tag.id} 
-                        className="flex items-center justify-between p-3 bg-black/40 border border-red-900/30 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }}></div>
-                          <span className="text-white font-medium">{tag.name}</span>
-                        </div>
-                        <button 
-                          onClick={() => handleDeleteTag(tag.id)}
-                          className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ===== АККАУНТЫ ===== */}
+            {/* ===== УПРАВЛЕНИЕ ПРОФИЛЯМИ ===== */}
             {activeTab === 'accounts' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">👥 Создание аккаунта</h3>
+                <h3 className="text-lg font-bold text-white mb-3">👥 Управление профилями</h3>
                 
+                {/* Список всех профилей */}
+                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl">
+                  <p className="text-sm text-gray-400 font-bold mb-3">Все профили ({allProfiles.length}):</p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {allProfiles.length === 0 ? (
+                      <p className="text-gray-500 text-sm text-center py-4">Нет сохранённых профилей</p>
+                    ) : (
+                      allProfiles.map(profile => (
+                        <div 
+                          key={profile.id} 
+                          className={`flex items-center justify-between p-3 rounded-lg border ${
+                            profile.id === currentProfile?.id 
+                              ? 'bg-green-900/20 border-green-700/50' 
+                              : 'bg-black/40 border-red-900/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div 
+                              className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-black text-white flex-shrink-0" 
+                              style={{ backgroundColor: profile.avatar_color || '#ef4444' }}
+                            >
+                              {profile.name?.charAt(0).toUpperCase() || '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-white font-medium truncate">{profile.name}</p>
+                              <p className="text-gray-500 text-xs">ID: {profile.id}</p>
+                            </div>
+                            {profile.id === currentProfile?.id && (
+                              <span className="px-2 py-1 bg-green-900/50 border border-green-700/50 rounded text-xs text-green-300 font-bold">
+                                ✓ Активен
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-2 ml-3">
+                            {profile.id !== currentProfile?.id && (
+                              <>
+                                <button 
+                                  onClick={() => handleSwitchProfile(profile)}
+                                  className="px-3 py-1 bg-blue-900/50 hover:bg-blue-900/80 rounded text-blue-300 text-xs font-bold transition"
+                                >
+                                  Переключить
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteProfile(profile)}
+                                  className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                                >
+                                  Удалить
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Создание нового аккаунта */}
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                  <p className="text-sm text-gray-400">
-                    Создай новый аккаунт для другого пользователя. После регистрации нужно подтвердить email.
-                  </p>
+                  <p className="text-sm text-gray-400 font-bold">Создать новый аккаунт:</p>
                   
                   <div>
                     <label className="block text-sm text-gray-400 mb-1">Имя пользователя:</label>
@@ -499,7 +425,7 @@ export default function SettingsPanel({
                     onClick={handleCreateAccount}
                     className="w-full px-4 py-2 bg-blue-700 hover:bg-blue-600 rounded-lg text-white font-bold transition"
                   >
-                     Создать аккаунт
+                    ➕ Создать аккаунт
                   </button>
                   
                   {accountMessage && (
@@ -517,6 +443,172 @@ export default function SettingsPanel({
                   <p className="text-sm text-yellow-300">
                     <strong>⚠️ Важно:</strong> Созданный пользователь должен подтвердить свой email, прежде чем сможет войти в систему.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* ===== ФОН ===== */}
+            {activeTab === 'appearance' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-3">🎨 Цвет фона</h3>
+                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Цвет начала градиента:</label>
+                    <input 
+                      type="color" 
+                      value={bgStart} 
+                      onChange={(e) => setBgStart(e.target.value)}
+                      className="w-full h-12 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Цвет конца градиента:</label>
+                    <input 
+                      type="color" 
+                      value={bgEnd} 
+                      onChange={(e) => setBgEnd(e.target.value)}
+                      className="w-full h-12 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
+                    />
+                  </div>
+                  <div 
+                    className="h-20 rounded-lg border border-red-900/30"
+                    style={{ background: `linear-gradient(135deg, ${bgStart} 0%, ${bgEnd} 100%)` }}
+                  ></div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleBgChange}
+                      className="flex-1 px-4 py-2 bg-purple-900/50 hover:bg-purple-900/80 border border-purple-700/50 rounded-lg text-purple-200 font-bold transition"
+                    >
+                      ✓ Применить
+                    </button>
+                    <button 
+                      onClick={handleResetBg}
+                      className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold transition"
+                    >
+                      ↺ Сбросить
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ===== ПАПКИ ===== */}
+            {activeTab === 'folders' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-3"> Управление папками</h3>
+                
+                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
+                  <p className="text-sm text-gray-400 font-bold">Добавить новую папку:</p>
+                  <div className="flex gap-2">
+                    <select 
+                      value={newCategoryIcon}
+                      onChange={(e) => setNewCategoryIcon(e.target.value)}
+                      className="px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
+                    >
+                      {iconOptions.map(icon => (
+                        <option key={icon} value={icon}>{icon}</option>
+                      ))}
+                    </select>
+                    <input 
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Название папки"
+                      className="flex-1 px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
+                    />
+                    <button 
+                      onClick={handleAddCategory}
+                      className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {categories.map(cat => (
+                    <div 
+                      key={cat.id} 
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        cat.id === activeCategory 
+                          ? 'bg-red-900/30 border-red-700/50' 
+                          : 'bg-black/40 border-red-900/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="text-xl">{cat.icon}</span>
+                        <span className="text-white font-medium truncate">{cat.name}</span>
+                        <span className="text-gray-500 text-sm">({(animeLists[cat.id] || []).length})</span>
+                        {cat.isCustom && (
+                          <span className="px-2 py-0.5 bg-blue-900/30 border border-blue-700/50 rounded text-xs text-blue-300">custom</span>
+                        )}
+                      </div>
+                      {!isDefaultCategory(cat.id) && (
+                        <button 
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="ml-2 px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                        >
+                          Удалить
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ===== ТЕГИ ===== */}
+            {activeTab === 'tags' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-white mb-3">🏷️ Управление тегами</h3>
+                
+                <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
+                  <p className="text-sm text-gray-400 font-bold">Добавить новый тег:</p>
+                  <div className="flex gap-2">
+                    <input 
+                      type="color"
+                      value={newTagColor}
+                      onChange={(e) => setNewTagColor(e.target.value)}
+                      className="w-12 h-10 rounded-lg cursor-pointer bg-transparent border border-red-900/30"
+                    />
+                    <input 
+                      type="text"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      placeholder="Название тега"
+                      className="flex-1 px-3 py-2 bg-black/60 border border-red-900/30 rounded-lg text-white text-sm focus:outline-none focus:border-red-700"
+                    />
+                    <button 
+                      onClick={handleAddTag}
+                      className="px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {tags.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">Нет пользовательских тегов</p>
+                  ) : (
+                    tags.map(tag => (
+                      <div 
+                        key={tag.id} 
+                        className="flex items-center justify-between p-3 bg-black/40 border border-red-900/30 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }}></div>
+                          <span className="text-white font-medium">{tag.name}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteTag(tag.id)}
+                          className="px-3 py-1 bg-red-900/50 hover:bg-red-900/80 rounded text-red-300 text-xs font-bold transition"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -555,7 +647,7 @@ export default function SettingsPanel({
       </div>
 
       {/* ========================================== */}
-      {/* ПОДПАНЕЛИ (z-[300]) - РЕНДЕРЯТСЯ ВНЕ       */}
+      {/* ПОДПАНЕЛИ (z-[300])                        */}
       {/* ========================================== */}
       
       {showImport && (

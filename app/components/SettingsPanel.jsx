@@ -47,6 +47,9 @@ export default function SettingsPanel({
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
+  // ВАЖНО: проверяем is_admin корректно (null -> false)
+  const isAdmin = currentProfile?.is_admin === true;
+
   useEffect(() => {
     setCategories(getAllCategories());
     loadTags();
@@ -79,8 +82,13 @@ export default function SettingsPanel({
         console.error('❌ Ошибка загрузки профилей:', error);
         setAllProfiles([]);
       } else {
-        console.log('✅ Профили из Supabase:', data);
-        setAllProfiles(data || []);
+        // ВАЖНО: преобразуем null в false для is_admin
+        const profiles = (data || []).map(p => ({
+          ...p,
+          is_admin: p.is_admin === true
+        }));
+        console.log('✅ Профили из Supabase:', profiles);
+        setAllProfiles(profiles);
       }
     } catch (e) {
       console.error('💥 Критическая ошибка:', e);
@@ -179,7 +187,7 @@ export default function SettingsPanel({
 
   const handleCreateProfile = async () => {
     if (!newProfileName.trim()) {
-      setProfileMessage('❌ Введи имя профиля!');
+      setProfileMessage(' Введи имя профиля!');
       return;
     }
     if (!newProfilePassword.trim() || newProfilePassword.length < 4) {
@@ -200,6 +208,8 @@ export default function SettingsPanel({
       created_at: new Date().toISOString()
     };
 
+    console.log('Создание профиля:', newProfile);
+
     const { data, error } = await supabase
       .from('profiles')
       .insert(newProfile)
@@ -211,8 +221,8 @@ export default function SettingsPanel({
       setProfileMessage(`❌ Ошибка: ${error.message}`);
     } else {
       console.log('✅ Профиль создан в Supabase:', data);
-      const updated = [...allProfiles, data];
-      setAllProfiles(updated);
+      // ВАЖНО: обновляем список профилей после создания
+      await loadAllProfiles();
       setNewProfileName('');
       setNewProfilePassword('');
       setNewProfileColor('#ef4444');
@@ -259,8 +269,7 @@ export default function SettingsPanel({
       return;
     }
     
-    const updated = allProfiles.filter(p => p.id !== profile.id);
-    setAllProfiles(updated);
+    await loadAllProfiles();
   };
 
   const handleToggleAdmin = async (profile) => {
@@ -269,20 +278,22 @@ export default function SettingsPanel({
       return;
     }
     
+    const newAdminStatus = !profile.is_admin;
+    console.log(`Изменение прав для ${profile.name}: is_admin = ${newAdminStatus}`);
+    
     const { error } = await supabase
       .from('profiles')
-      .update({ is_admin: !profile.is_admin })
+      .update({ is_admin: newAdminStatus })
       .eq('id', profile.id);
     
     if (error) {
+      console.error('Ошибка изменения прав:', error);
       alert(`Ошибка: ${error.message}`);
       return;
     }
     
-    const updated = allProfiles.map(p => 
-      p.id === profile.id ? { ...p, is_admin: !p.is_admin } : p
-    );
-    setAllProfiles(updated);
+    await loadAllProfiles();
+    alert(`✅ ${profile.name} теперь ${newAdminStatus ? 'администратор' : 'обычный пользователь'}`);
   };
 
   const handleChangePassword = async (profile) => {
@@ -304,19 +315,16 @@ export default function SettingsPanel({
       return;
     }
 
-    const updated = allProfiles.map(p => 
-      p.id === profile.id ? { ...p, password: newPassword } : p
-    );
-    setAllProfiles(updated);
+    await loadAllProfiles();
     alert(`✅ Пароль для профиля "${profile.name}" изменён!`);
   };
 
-  const iconOptions = ['📁', '📂', '📚', '⭐', '', '🌟', '', '🎭', '🎪', '🎨', '🎵', '', '⚡', '🌙', '☀️', '', '🌸', '🏆', '🚀', '💫'];
+  const iconOptions = ['📁', '📂', '', '⭐', '🌟', '', '🎪', '🎨', '🎵', '⚡', '🌙', '☀️', '', '🏆', '🚀', '💫'];
 
   const tabs = [
     { id: 'profile', name: '👤 Профиль' },
     { id: 'accounts', name: '👥 Профили' },
-    { id: 'appearance', name: '🎨 Фон' },
+    { id: 'appearance', name: ' Фон' },
     { id: 'folders', name: '📁 Папки' },
     { id: 'tags', name: '🏷️ Теги' },
     { id: 'tools', name: '🛠️ Инструменты' },
@@ -328,7 +336,7 @@ export default function SettingsPanel({
         <div className="bg-gray-900 border border-red-900/50 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl relative flex flex-col">
           
           <div className="p-5 border-b border-red-900/30 flex items-center justify-between flex-shrink-0 bg-gray-900">
-            <h2 className="text-2xl font-bold text-red-400">⚙️ Настройки</h2>
+            <h2 className="text-2xl font-bold text-red-400">️ Настройки</h2>
             <button 
               onClick={onClose} 
               className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
@@ -357,7 +365,7 @@ export default function SettingsPanel({
             
             {activeTab === 'profile' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">👤 Текущий профиль</h3>
+                <h3 className="text-lg font-bold text-white mb-3"> Текущий профиль</h3>
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl flex items-center gap-4">
                   <div 
                     className="w-14 h-14 rounded-full flex items-center justify-center text-2xl font-black text-white flex-shrink-0" 
@@ -368,7 +376,7 @@ export default function SettingsPanel({
                   <div className="min-w-0 flex-1">
                     <p className="text-white font-bold text-lg truncate">{currentProfile?.name}</p>
                     <p className="text-gray-400 text-sm">ID: {currentProfile?.id}</p>
-                    {currentProfile?.is_admin && (
+                    {isAdmin && (
                       <p className="text-xs text-red-400 font-medium mt-1">👑 Администратор</p>
                     )}
                   </div>
@@ -384,8 +392,17 @@ export default function SettingsPanel({
 
             {activeTab === 'accounts' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">👥 Управление профилями</h3>
+                <h3 className="text-lg font-bold text-white mb-3"> Управление профилями</h3>
                 
+                {/* Отладочная информация */}
+                <div className="p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
+                  <p className="text-xs text-blue-300">
+                    Текущий профиль: {currentProfile?.name} | 
+                    is_admin: {String(isAdmin)} | 
+                    Всего профилей: {allProfiles.length}
+                  </p>
+                </div>
+
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl">
                   <p className="text-sm text-gray-400 font-bold mb-3">Все профили ({allProfiles.length}):</p>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -432,13 +449,13 @@ export default function SettingsPanel({
                                 >
                                   🔑 Войти
                                 </button>
-                                {currentProfile?.is_admin && (
+                                {isAdmin && (
                                   <>
                                     <button 
                                       onClick={() => handleChangePassword(profile)}
                                       className="px-3 py-1 bg-purple-900/50 hover:bg-purple-900/80 rounded text-purple-300 text-xs font-bold transition"
                                     >
-                                      🔒 Сменить пароль
+                                      🔒 Пароль
                                     </button>
                                     <button 
                                       onClick={() => handleToggleAdmin(profile)}
@@ -467,7 +484,7 @@ export default function SettingsPanel({
                   </div>
                 </div>
 
-                {currentProfile?.is_admin && (
+                {isAdmin && (
                   <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
                     <p className="text-sm text-gray-400 font-bold">➕ Создать новый профиль (только для администратора):</p>
                     
@@ -522,7 +539,7 @@ export default function SettingsPanel({
                   </div>
                 )}
 
-                {!currentProfile?.is_admin && (
+                {!isAdmin && (
                   <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-xl">
                     <p className="text-sm text-yellow-300">
                       <strong>⚠️ Только администратор</strong> может создавать новые профили и управлять правами.
@@ -697,7 +714,7 @@ export default function SettingsPanel({
 
             {activeTab === 'tools' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">🛠️ Инструменты</h3>
+                <h3 className="text-lg font-bold text-white mb-3">️ Инструменты</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button 
                     onClick={() => setShowImport(true)}
@@ -713,7 +730,7 @@ export default function SettingsPanel({
                     onClick={() => setShowCoverSearch(true)}
                     className="px-4 py-4 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/50 rounded-lg text-purple-200 font-bold transition text-left flex items-center gap-3"
                   >
-                    <span className="text-2xl">🖼️</span>
+                    <span className="text-2xl">️</span>
                     <div>
                       <p className="font-bold">Найти обложки</p>
                       <p className="text-xs text-purple-300/70">Автоматический поиск постеров</p>
@@ -742,7 +759,7 @@ export default function SettingsPanel({
                   }}
                   className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
                 >
-                  
+                  ✕
                 </button>
               </div>
 
@@ -756,7 +773,7 @@ export default function SettingsPanel({
                 <div>
                   <p className="text-white font-bold text-lg">{selectedProfileForLogin.name}</p>
                   {selectedProfileForLogin.is_admin && (
-                    <p className="text-xs text-red-400">👑 Администратор</p>
+                    <p className="text-xs text-red-400"> Администратор</p>
                   )}
                 </div>
               </div>

@@ -26,18 +26,34 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [alphabetSort, setAlphabetSort] = useState(false);
   
-  // Drag & Drop состояние
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
 
   useEffect(() => {
-    const checkProfile = () => {
+    const checkProfile = async () => {
       try {
         const savedProfile = localStorage.getItem('currentProfile');
         if (savedProfile) {
           const profile = JSON.parse(savedProfile);
           if (profile && profile.id) {
-            setCurrentProfile(profile);
+            // Обновляем данные профиля из Supabase для актуального is_admin
+            const { data: updatedProfile, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', profile.id)
+              .single();
+            
+            if (error) {
+              console.error('Ошибка обновления профиля:', error);
+              setCurrentProfile(profile);
+            } else {
+              const newProfile = {
+                ...updatedProfile,
+                is_admin: updatedProfile.is_admin === true
+              };
+              localStorage.setItem('currentProfile', JSON.stringify(newProfile));
+              setCurrentProfile(newProfile);
+            }
           } else {
             localStorage.removeItem('currentProfile');
             router.push('/login');
@@ -65,6 +81,7 @@ export default function Home() {
   useEffect(() => {
     if (!currentProfile) return;
     const fetchAnime = async () => {
+      console.log('Загрузка аниме для профиля:', currentProfile.id);
       const { data, error } = await supabase
         .from('anime')
         .select('*')
@@ -73,8 +90,9 @@ export default function Home() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Ошибка загрузки:', error);
+        console.error('Ошибка загрузки аниме:', error);
       } else {
+        console.log('Аниме загружено:', data?.length || 0);
         const grouped = {};
         categories.forEach(cat => { grouped[cat.id] = []; });
         data.forEach(anime => {
@@ -347,7 +365,10 @@ export default function Home() {
 
   const handleSortChange = (tags) => { setSelectedTags(tags); };
   const handleSelectAnime = (anime) => { setActiveCategory(anime.category_id); };
-  const handleLogout = () => { localStorage.removeItem('currentProfile'); router.push('/login'); };
+  const handleLogout = () => { 
+    localStorage.removeItem('currentProfile'); 
+    router.push('/login'); 
+  };
 
   const handleSelect = (animeId) => {
     setSelectedIds(prev => prev.includes(animeId) ? prev.filter(id => id !== animeId) : [...prev, animeId]);
@@ -458,10 +479,9 @@ export default function Home() {
                 selectMode ? 'bg-gradient-to-r from-yellow-600 to-yellow-700 text-white shadow-lg shadow-yellow-900/50' : 'bg-black/60 border border-red-900/30 text-gray-400 hover:text-white hover:border-red-700'
               }`}
             >
-              {selectMode ? '✓ Режим выбора' : '☐ Выбрать'}
+              {selectMode ? '✓ Режим выбора' : ' Выбрать'}
             </button>
 
-            {/* КНОПКА РУЧНОГО ДОБАВЛЕНИЯ — АНИМИРОВАННАЯ */}
             <button
               onClick={() => setShowManualAdd(true)}
               className="p-5 rounded-full bg-gradient-to-br from-green-600 to-green-800 border-2 border-green-500 text-white hover:from-green-500 hover:to-green-700 shadow-xl shadow-green-600/50 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-0 animate-bounce hover:animate-none"
@@ -473,7 +493,6 @@ export default function Home() {
               </svg>
             </button>
 
-            {/* КНОПКА ПОИСКА */}
             <button
               onClick={() => setShowSearchBar(!showSearchBar)}
               className={`p-5 rounded-full transition-all duration-300 border-2 transform hover:scale-110 focus:outline-none focus:ring-0 ${

@@ -395,19 +395,28 @@ export default function Home() {
     }
   };
 
-  const handleMoveAnime = async (animeId, newCategory) => {
-    const anime = (animeLists[activeCategory] || []).find(a => a.id === animeId);
-    if (!anime) return;
-    const { error } = await supabase.from('anime').update({ category_id: newCategory }).eq('id', animeId);
-    if (error) { alert('Не удалось переместить'); } 
-    else {
-      setAnimeLists(prev => ({
-        ...prev,
-        [activeCategory]: (prev[activeCategory] || []).filter(a => a.id !== animeId),
-        [newCategory]: [...(prev[newCategory] || []), { ...anime, category_id: newCategory }]
-      }));
-    }
-  };
+ const handleMoveAnime = async (animeId, newCategory) => {
+  const anime = (animeLists[activeCategory] || []).find(a => a.id === animeId);
+  if (!anime) return;
+
+  // Сначала мгновенно обновляем UI
+  setAnimeLists(prev => ({
+    ...prev,
+    [activeCategory]: (prev[activeCategory] || []).filter(a => a.id !== animeId),
+    [newCategory]: [...(prev[newCategory] || []), { ...anime, category_id: newCategory }]
+  }));
+
+  // Потом отправляем на сервер в фоне
+  const { error } = await supabase
+    .from('anime')
+    .update({ category_id: newCategory })
+    .eq('id', animeId);
+
+  if (error) {
+    console.error('Ошибка переноса:', error);
+    alert('Не удалось переместить аниме');
+  }
+};
 
   const handleUpdateTags = async (animeId, newTags) => {
     const { error } = await supabase.from('anime').update({ custom_tags: newTags }).eq('id', animeId);

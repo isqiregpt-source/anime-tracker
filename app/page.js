@@ -96,7 +96,7 @@ export default function Home() {
         const customCategories = customCats.map(c => ({
           id: c.id,
           name: c.name,
-          icon: c.icon || '📁',
+          icon: c.icon || '',
           isCustom: true
         }));
         allCategories = [...allCategories, ...customCategories];
@@ -196,7 +196,8 @@ export default function Home() {
       profile_id: currentProfile.id,
       sort_order: maxOrder + 1,
       comment: null,
-      show_note: false
+      show_note: false,
+      countdown_date: null
     };
 
     const { data, error } = await supabase.from('anime').insert(newAnimePayload).select();
@@ -263,6 +264,27 @@ export default function Home() {
           const index = (newList[cat] || []).findIndex(a => a.id === animeId);
           if (index !== -1) {
             newList[cat][index] = { ...newList[cat][index], show_note: showNote };
+            break;
+          }
+        }
+        return newList;
+      });
+    }
+  };
+
+  // НОВАЯ ФУНКЦИЯ: обновление даты обратного отсчёта
+  const handleUpdateCountdown = async (animeId, countdownDate) => {
+    const { error } = await supabase.from('anime').update({ countdown_date: countdownDate }).eq('id', animeId);
+    if (error) {
+      console.error('Ошибка обновления даты:', error);
+      alert('Не удалось сохранить дату');
+    } else {
+      setAnimeLists(prev => {
+        const newList = { ...prev };
+        for (const cat in newList) {
+          const index = (newList[cat] || []).findIndex(a => a.id === animeId);
+          if (index !== -1) {
+            newList[cat][index] = { ...newList[cat][index], countdown_date: countdownDate };
             break;
           }
         }
@@ -574,7 +596,7 @@ export default function Home() {
           <div className="mb-6 p-4 bg-black/60 backdrop-blur-sm border border-red-900/30 rounded-xl animate-fade-in relative z-40">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-red-400">Добавить аниме</h3>
-              <button onClick={() => setShowSearchBar(false)} className="text-gray-400 hover:text-red-400 text-xl transition font-bold px-2 focus:outline-none focus:ring-0"></button>
+              <button onClick={() => setShowSearchBar(false)} className="text-gray-400 hover:text-red-400 text-xl transition font-bold px-2 focus:outline-none focus:ring-0">✕</button>
             </div>
             <SearchBar onAddAnime={handleAddAnime} />
           </div>
@@ -605,6 +627,7 @@ export default function Home() {
                 onUpdateDetails={handleUpdateDetails}
                 onUpdateComment={handleUpdateComment}
                 onToggleNote={handleToggleNote}
+                onUpdateCountdown={handleUpdateCountdown}
                 onSelect={handleSelect}
                 isSelected={selectedIds.includes(anime.id)}
                 selectMode={selectMode}

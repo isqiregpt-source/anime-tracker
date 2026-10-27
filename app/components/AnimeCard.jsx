@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getAllTags } from '../utils/tags';
 
 export default function AnimeCard({ 
@@ -14,6 +14,7 @@ export default function AnimeCard({
   onUpdateDetails,
   onUpdateComment,
   onToggleNote,
+  onUpdateCountdown,
   onDragStart,
   onDragOver,
   onDrop,
@@ -26,6 +27,11 @@ export default function AnimeCard({
   const [isEditingComment, setIsEditingComment] = useState(false);
   const [commentText, setCommentText] = useState(anime.comment || '');
   
+  // Обратный отсчёт
+  const [showCountdownModal, setShowCountdownModal] = useState(false);
+  const [countdownInput, setCountdownInput] = useState(anime.countdown_date || '');
+  const [timeLeft, setTimeLeft] = useState(null);
+  
   const [editData, setEditData] = useState({
     title: anime.title,
     year: anime.year || '',
@@ -37,6 +43,49 @@ export default function AnimeCard({
 
   const allTags = getAllTags();
   const showNote = anime.show_note === true;
+
+  // Проверяем, в папке "Ожидаю" ли карточка
+  const isInWaitlist = anime.category_id === 'on_hold';
+
+  // Расчёт обратного отсчёта
+  const calculateTimeLeft = (targetDate) => {
+    if (!targetDate) return null;
+    const now = new Date();
+    const target = new Date(targetDate);
+    const diff = target - now;
+    
+    if (diff <= 0) return { expired: true, text: '🔥 Дата наступила!' };
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    return { 
+      expired: false, 
+      days, 
+      hours, 
+      minutes, 
+      seconds,
+      text: `${days}д ${hours}ч ${minutes}м ${seconds}с`
+    };
+  };
+
+  // Обновляем таймер каждую секунду
+  useEffect(() => {
+    if (!anime.countdown_date || !isInWaitlist) {
+      setTimeLeft(null);
+      return;
+    }
+
+    const update = () => {
+      setTimeLeft(calculateTimeLeft(anime.countdown_date));
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [anime.countdown_date, isInWaitlist]);
 
   const handleContextMenu = (e) => {
     if (selectMode) return;
@@ -53,6 +102,22 @@ export default function AnimeCard({
   const handleSaveComment = async () => {
     await onUpdateComment(anime.id, commentText);
     setIsEditingComment(false);
+  };
+
+  const handleSaveCountdown = async () => {
+    if (!countdownInput) {
+      await onUpdateCountdown(anime.id, null);
+      setShowCountdownModal(false);
+      return;
+    }
+    await onUpdateCountdown(anime.id, countdownInput);
+    setShowCountdownModal(false);
+  };
+
+  const handleRemoveCountdown = async () => {
+    await onUpdateCountdown(anime.id, null);
+    setCountdownInput('');
+    setShowContextMenu(false);
   };
 
   const toggleTag = async (tagId) => {
@@ -149,7 +214,7 @@ export default function AnimeCard({
           isSelected ? 'border-yellow-500 bg-yellow-900/10' : 'border-red-900/30 hover:border-red-700/50'
         } ${!selectMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
-        {/* АНИМИРОВАННАЯ КНОПКА УДАЛЕНИЯ - ПРАВЫЙ ВЕРХНИЙ УГОЛ */}
+        {/* АНИМИРОВАННАЯ КНОПКА УДАЛЕНИЯ */}
         {!selectMode && (
           <button
             onClick={(e) => {
@@ -167,7 +232,18 @@ export default function AnimeCard({
           </button>
         )}
 
-        {/* Drag handle (иконка перемещения) */}
+        {/* ОБРАТНЫЙ ОТСЧЁТ — только для папки "Ожидаю" */}
+        {isInWaitlist && timeLeft && (
+          <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg font-bold text-sm z-30 shadow-lg ${
+            timeLeft.expired 
+              ? 'bg-red-700 text-white animate-pulse' 
+              : 'bg-red-900/80 text-red-300 border border-red-700/50'
+          }`}>
+            ⏳ {timeLeft.text}
+          </div>
+        )}
+
+        {/* Drag handle */}
         {!selectMode && (
           <div className="flex items-center flex-shrink-0 px-2 text-gray-600 hover:text-yellow-400 transition" title="Зажми и перетащи">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -200,9 +276,9 @@ export default function AnimeCard({
               )}
             </div>
             <div className="flex items-center gap-3 text-base">
-              <span className="text-gray-300"> {anime.year}</span>
+              <span className="text-gray-300">📅 {anime.year}</span>
               <span className="text-gray-600">•</span>
-              <span className="text-gray-300">🎬 {anime.episodes} эп.</span>
+              <span className="text-gray-300"> {anime.episodes} эп.</span>
               {anime.score && anime.score > 0 && (<><span className="text-gray-600">•</span><span className="text-yellow-400 font-black text-lg">⭐ {anime.score}%</span></>)}
             </div>
             {anime.genres && anime.genres.length > 0 && (
@@ -213,7 +289,6 @@ export default function AnimeCard({
               </div>
             )}
 
-            {/* ЗАМЕТКА ПО ЦЕНТРУ КАРТОЧКИ — только если включена */}
             {showNote && (
               <div 
                 onClick={() => setIsEditingComment(true)}
@@ -264,7 +339,7 @@ export default function AnimeCard({
           </div>
         </div>
 
-        {/* КНОПКА МЕНЮ (ТРИ ТОЧКИ) - ПРАВЫЙ НИЖНИЙ УГОЛ */}
+        {/* КНОПКА МЕНЮ (ТРИ ТОЧКИ) */}
         {!selectMode && (
           <button
             onClick={(e) => {
@@ -286,7 +361,7 @@ export default function AnimeCard({
         )}
       </div>
 
-      {/* Контекстное меню (открывается по кнопке или ПКМ) */}
+      {/* Контекстное меню */}
       {showContextMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowContextMenu(false)} />
@@ -304,7 +379,31 @@ export default function AnimeCard({
             <div className="p-2 min-w-[200px]">
               <button onClick={() => { setIsEditing(true); setShowContextMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2">✏️ Редактировать</button>
               
-              {/* ПУНКТ ВКЛЮЧЕНИЯ/ВЫКЛЮЧЕНИЯ ЗАМЕТКИ */}
+              {/* ПУНКТ ОБРАТНОГО ОТСЧЁТА — только для папки "Ожидаю" */}
+              {isInWaitlist && (
+                <>
+                  <div className="border-t border-red-900/30 my-1"></div>
+                  <button 
+                    onClick={() => { 
+                      setCountdownInput(anime.countdown_date || '');
+                      setShowCountdownModal(true);
+                      setShowContextMenu(false); 
+                    }} 
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2"
+                  >
+                    📅 {anime.countdown_date ? 'Изменить дату отсчёта' : 'Установить дату отсчёта'}
+                  </button>
+                  {anime.countdown_date && (
+                    <button 
+                      onClick={handleRemoveCountdown} 
+                      className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2"
+                    >
+                      ❌ Убрать обратный отсчёт
+                    </button>
+                  )}
+                </>
+              )}
+
               <button 
                 onClick={() => { 
                   onToggleNote(anime.id, !showNote); 
@@ -324,7 +423,7 @@ export default function AnimeCard({
                 { id: 'planned', name: '📌 Запланированные' },
                 { id: 'on_hold', name: '⏸️ Ожидаю' },
                 { id: 'dropped', name: '🗑️ Заброшенные' },
-                { id: 'closed', name: ' Закрытые' }
+                { id: 'closed', name: '🔒 Закрытые' }
               ].filter(c => c.id !== anime.category_id).map((item) => (
                 <button key={item.id} onClick={() => { onMove(anime.id, item.id); setShowContextMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition">
                   {item.name}
@@ -353,6 +452,66 @@ export default function AnimeCard({
             </div>
           </div>
         </>
+      )}
+
+      {/* МОДАЛКА УСТАНОВКИ ДАТЫ */}
+      {showCountdownModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[320] p-4">
+          <div className="bg-gray-900 border-2 border-red-700/50 rounded-2xl max-w-md w-full shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-red-400"> Дата обратного отсчёта</h3>
+                <button 
+                  onClick={() => {
+                    setShowCountdownModal(false);
+                    setCountdownInput(anime.countdown_date || '');
+                  }}
+                  className="text-gray-400 hover:text-red-400 text-2xl transition font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-gray-400 text-sm mb-4">
+                Установи дату, до которой будет идти обратный отсчёт. 
+                Карточка: <span className="text-white font-bold">{anime.title}</span>
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Выбери дату и время:</label>
+                  <input 
+                    type="datetime-local"
+                    value={countdownInput}
+                    onChange={(e) => setCountdownInput(e.target.value)}
+                    className="w-full px-4 py-3 bg-black/60 border-2 border-red-900/30 rounded-lg text-white text-base focus:outline-none focus:border-red-700"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {countdownInput && `Выбрано: ${new Date(countdownInput).toLocaleString('ru-RU')}`}
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleSaveCountdown}
+                    className="flex-1 px-4 py-3 bg-red-700 hover:bg-red-600 rounded-lg text-white font-bold transition"
+                  >
+                    ✓ {anime.countdown_date ? 'Обновить' : 'Установить'}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowCountdownModal(false);
+                      setCountdownInput(anime.countdown_date || '');
+                    }}
+                    className="px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-bold transition"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

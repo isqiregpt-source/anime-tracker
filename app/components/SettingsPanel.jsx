@@ -94,7 +94,7 @@ export default function SettingsPanel({
   const loadCustomCategories = async () => {
     if (!currentProfile?.id) return;
     
-    console.log('Загрузка папок для профиля:', currentProfile.id);
+    console.log('🔄 Загрузка папок для профиля:', currentProfile.id);
     
     const { data, error } = await supabase
       .from('custom_categories')
@@ -103,13 +103,14 @@ export default function SettingsPanel({
       .order('sort_order', { ascending: true });
 
     if (error) {
-      console.error('Ошибка загрузки папок:', error);
+      console.error('❌ Ошибка загрузки папок:', error);
       return;
     }
 
     const systemCats = getAllCategories();
     
     if (data && data.length > 0) {
+      console.log(`✅ Загружено ${data.length} кастомных папок`);
       const customCats = data.map(c => ({
         id: c.id,
         name: c.name,
@@ -117,7 +118,6 @@ export default function SettingsPanel({
         isCustom: true
       }));
       setCategories([...systemCats, ...customCats]);
-      console.log('Папки загружены:', customCats.length);
     } else {
       setCategories(systemCats);
     }
@@ -148,12 +148,10 @@ export default function SettingsPanel({
     const newCat = {
       profile_id: currentProfile.id,
       name: newCategoryName.trim(),
-      icon: newCategoryIcon || '📁',
+      icon: newCategoryIcon || '',
       sort_order: categories.length,
       created_at: new Date().toISOString()
     };
-
-    console.log('Создание папки:', newCat);
 
     const { data, error } = await supabase
       .from('custom_categories')
@@ -173,7 +171,7 @@ export default function SettingsPanel({
     ];
     setCategories(updatedCategories);
     setNewCategoryName('');
-    setNewCategoryIcon('');
+    setNewCategoryIcon('📁');
     alert(`✅ Папка "${data.name}" создана!`);
   };
 
@@ -182,34 +180,67 @@ export default function SettingsPanel({
       alert('Системные папки нельзя удалять!');
       return;
     }
-    if (!confirm(`Удалить папку "${categories.find(c => c.id === catId)?.name}"?`)) return;
     
-    const { error } = await supabase
-      .from('custom_categories')
-      .delete()
-      .eq('id', catId);
-
-    if (error) {
-      alert(`Ошибка удаления: ${error.message}`);
-      return;
-    }
-
-    const catAnime = animeLists[catId] || [];
-    if (catAnime.length > 0) {
-      for (const anime of catAnime) {
-        await supabase.from('anime').update({ category_id: 'planned' }).eq('id', anime.id);
+    const categoryName = categories.find(c => c.id === catId)?.name || 'папку';
+    if (!confirm(`Удалить папку "${categoryName}"? Аниме из неё будут перемещены в "Запланированные".`)) return;
+    
+    console.log('🗑️ Удаление папки:', catId);
+    
+    try {
+      // 1. Перемещаем аниме из удаляемой папки в "Запланированные"
+      const catAnime = animeLists[catId] || [];
+      if (catAnime.length > 0) {
+        console.log(`📦 Перемещаем ${catAnime.length} аниме в "Запланированные"`);
+        
+        for (const anime of catAnime) {
+          const { error: moveError } = await supabase
+            .from('anime')
+            .update({ category_id: 'planned' })
+            .eq('id', anime.id);
+          
+          if (moveError) {
+            console.error('Ошибка перемещения аниме:', moveError);
+          }
+        }
+        
+        setAnimeLists(prev => {
+          const newList = { ...prev };
+          newList['planned'] = [...(newList['planned'] || []), ...catAnime.map(a => ({ ...a, category_id: 'planned' }))];
+          delete newList[catId];
+          return newList;
+        });
       }
-      setAnimeLists(prev => {
-        const newList = { ...prev };
-        newList['planned'] = [...(newList['planned'] || []), ...catAnime.map(a => ({ ...a, category_id: 'planned' }))];
-        delete newList[catId];
-        return newList;
-      });
+      
+      // 2. Удаляем папку из Supabase
+      console.log('📡 Отправляем запрос на удаление папки в Supabase...');
+      const { data, error } = await supabase
+        .from('custom_categories')
+        .delete()
+        .eq('id', catId)
+        .select();
+      
+      if (error) {
+        console.error('❌ Ошибка удаления папки из Supabase:', error);
+        alert(`Ошибка удаления: ${error.message}\n\nКод: ${error.code}`);
+        return;
+      }
+      
+      console.log('✅ Папка удалена из Supabase:', data);
+      
+      // 3. Обновляем локальное состояние
+      const updatedCategories = categories.filter(c => c.id !== catId);
+      setCategories(updatedCategories);
+      
+      // 4. Если удалили активную папку — переключаемся
+      if (activeCategory === catId) {
+        setActiveCategory('watching');
+      }
+      
+      alert(`✅ Папка "${categoryName}" удалена!`);
+    } catch (e) {
+      console.error('💥 Критическая ошибка при удалении:', e);
+      alert(`Критическая ошибка: ${e.message}`);
     }
-    
-    const updatedCategories = categories.filter(c => c.id !== catId);
-    setCategories(updatedCategories);
-    if (activeCategory === catId) setActiveCategory('watching');
   };
 
   const handleAddTag = () => {
@@ -400,15 +431,15 @@ export default function SettingsPanel({
     alert(`✅ Пароль для профиля "${profile.name}" изменён!`);
   };
 
-  const iconOptions = ['📁', '📂', '', '⭐', '🔥', '', '🌟', '🎭', '🎪', '🎨', '', '🎮', '⚡', '🌙', '☀️', '🌊', '🌸', '', '🚀', '💫'];
+  const iconOptions = ['📁', '📂', '📚', '⭐', '', '💎', '🌟', '🎭', '🎪', '', '🎵', '🎮', '⚡', '🌙', '️', '🌊', '🌸', '🏆', '🚀', '💫'];
 
   const tabs = [
     { id: 'profile', name: '👤 Профиль' },
-    { id: 'accounts', name: ' Профили' },
+    { id: 'accounts', name: '👥 Профили' },
     { id: 'appearance', name: '🎨 Фон' },
-    { id: 'folders', name: ' Папки' },
+    { id: 'folders', name: '📁 Папки' },
     { id: 'tags', name: '🏷️ Теги' },
-    { id: 'tools', name: '️ Инструменты' },
+    { id: 'tools', name: '🛠️ Инструменты' },
   ];
 
   return (
@@ -536,7 +567,7 @@ export default function SettingsPanel({
                                     onClick={() => handleRequestLogin(profile)}
                                     className="px-2 py-1 bg-blue-900/50 hover:bg-blue-900/80 rounded text-blue-300 text-xs font-bold transition"
                                   >
-                                    🔑 Войти
+                                     Войти
                                   </button>
                                 )}
                                 
@@ -558,7 +589,7 @@ export default function SettingsPanel({
                                       }`}
                                       title={profile.is_admin ? 'Убрать права админа' : 'Сделать админом'}
                                     >
-                                      {profile.is_admin ? '-' : '👑+'}
+                                      {profile.is_admin ? '-' : '+'}
                                     </button>
                                     <button 
                                       onClick={() => handleDeleteProfile(profile)}
@@ -580,7 +611,7 @@ export default function SettingsPanel({
 
                 {isAdmin && (
                   <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                    <p className="text-sm text-gray-400 font-bold"> Создать новый профиль (только для администратора):</p>
+                    <p className="text-sm text-gray-400 font-bold">➕ Создать новый профиль (только для администратора):</p>
                     
                     <div>
                       <label className="block text-sm text-gray-400 mb-1">Имя профиля:</label>
@@ -636,7 +667,7 @@ export default function SettingsPanel({
                 {!isAdmin && (
                   <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-xl">
                     <p className="text-sm text-yellow-300">
-                      <strong>️ Только администратор</strong> может создавать новые профили и управлять правами.
+                      <strong>⚠️ Только администратор</strong> может создавать новые профили и управлять правами.
                     </p>
                   </div>
                 )}
@@ -645,7 +676,7 @@ export default function SettingsPanel({
 
             {activeTab === 'appearance' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3"> Цвет фона</h3>
+                <h3 className="text-lg font-bold text-white mb-3">🎨 Цвет фона</h3>
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-4">
                   <div>
                     <label className="block text-sm text-gray-400 mb-2">Цвет начала градиента:</label>
@@ -828,7 +859,7 @@ export default function SettingsPanel({
                     onClick={() => setShowCoverSearch(true)}
                     className="px-4 py-4 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/50 rounded-lg text-purple-200 font-bold transition text-left flex items-center gap-3"
                   >
-                    <span className="text-2xl">🖼️</span>
+                    <span className="text-2xl">️</span>
                     <div>
                       <p className="font-bold">Найти обложки</p>
                       <p className="text-xs text-purple-300/70">Автоматический поиск постеров</p>
@@ -871,7 +902,7 @@ export default function SettingsPanel({
                 <div>
                   <p className="text-white font-bold text-lg">{selectedProfileForLogin.name}</p>
                   {selectedProfileForLogin.is_admin && (
-                    <p className="text-xs text-red-400">👑 Администратор</p>
+                    <p className="text-xs text-red-400"> Администратор</p>
                   )}
                 </div>
               </div>

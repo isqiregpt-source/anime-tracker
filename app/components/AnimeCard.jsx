@@ -28,10 +28,12 @@ export default function AnimeCard({
   const [isEditingComment, setIsEditingComment] = useState(false);
   const [commentText, setCommentText] = useState(anime.comment || '');
   
-  // Обратный отсчёт
   const [showCountdownModal, setShowCountdownModal] = useState(false);
   const [countdownInput, setCountdownInput] = useState(anime.countdown_date || '');
   const [timeLeft, setTimeLeft] = useState(null);
+  
+  // Увеличение обложки
+  const [showFullImage, setShowFullImage] = useState(false);
   
   const [editData, setEditData] = useState({
     title: anime.title,
@@ -44,11 +46,8 @@ export default function AnimeCard({
 
   const allTags = getAllTags();
   const showNote = anime.show_note === true;
-
-  // Проверяем, в папке "Ожидаю" ли карточка
   const isInWaitlist = anime.category_id === 'on_hold';
 
-  // Расчёт обратного отсчёта
   const calculateTimeLeft = (targetDate) => {
     if (!targetDate) return null;
     const now = new Date();
@@ -64,25 +63,17 @@ export default function AnimeCard({
     
     return { 
       expired: false, 
-      days, 
-      hours, 
-      minutes, 
-      seconds,
+      days, hours, minutes, seconds,
       text: `${days}д ${hours}ч ${minutes}м ${seconds}с`
     };
   };
 
-  // Обновляем таймер каждую секунду
   useEffect(() => {
     if (!anime.countdown_date || !isInWaitlist) {
       setTimeLeft(null);
       return;
     }
-
-    const update = () => {
-      setTimeLeft(calculateTimeLeft(anime.countdown_date));
-    };
-
+    const update = () => setTimeLeft(calculateTimeLeft(anime.countdown_date));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
@@ -151,7 +142,11 @@ export default function AnimeCard({
     onDrop(anime.id);
   };
 
-  // Режим редактирования карточки
+  const handleImageClick = (e) => {
+    e.stopPropagation();
+    setShowFullImage(true);
+  };
+
   if (isEditing) {
     return (
       <div className="flex items-stretch gap-5 p-5 bg-gray-900 border-2 border-yellow-600 rounded-2xl shadow-2xl z-20 relative animate-fade-in">
@@ -221,7 +216,6 @@ export default function AnimeCard({
           isSelected ? 'border-yellow-500 bg-yellow-900/10' : 'border-red-900/30 hover:border-red-700/50'
         } ${!selectMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
       >
-        {/* АНИМИРОВАННАЯ КНОПКА УДАЛЕНИЯ - ПРАВЫЙ ВЕРХНИЙ УГОЛ */}
         {!selectMode && (
           <button
             onClick={(e) => {
@@ -239,7 +233,6 @@ export default function AnimeCard({
           </button>
         )}
 
-        {/* Drag handle (иконка перемещения) */}
         {!selectMode && (
           <div className="flex items-center flex-shrink-0 px-2 text-gray-600 hover:text-yellow-400 transition" title="Зажми и перетащи">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -254,7 +247,14 @@ export default function AnimeCard({
           </div>
         )}
 
-        <img src={anime.image_url} alt={anime.title} className="w-36 h-52 object-cover rounded-xl flex-shrink-0 shadow-lg shadow-black/50" onError={(e) => { e.target.src = 'https://images.meme-arsenal.com/31f2e18074a78fed6adf2284b5ff3e71.jpg'; }} />
+        <img 
+          src={anime.image_url} 
+          alt={anime.title} 
+          onClick={handleImageClick}
+          className="w-36 h-52 object-cover rounded-xl flex-shrink-0 shadow-lg shadow-black/50 cursor-zoom-in hover:scale-105 transition-transform duration-300"
+          onError={(e) => { e.target.src = 'https://images.meme-arsenal.com/31f2e18074a78fed6adf2284b5ff3e71.jpg'; }}
+          title="Нажми для увеличения"
+        />
 
         <div className="flex-1 min-w-0 flex flex-col justify-between">
           <div className="space-y-3">
@@ -285,7 +285,6 @@ export default function AnimeCard({
               </div>
             )}
 
-            {/* ОБРАТНЫЙ ОТСЧЁТ — по центру карточки, только для папки "Ожидаю" */}
             {isInWaitlist && timeLeft && (
               <div className={`w-full text-center py-3 px-4 rounded-xl font-black text-2xl tracking-wider shadow-2xl border-2 ${
                 timeLeft.expired 
@@ -296,7 +295,6 @@ export default function AnimeCard({
               </div>
             )}
 
-            {/* ЗАМЕТКА */}
             {showNote && (
               <div 
                 onClick={() => setIsEditingComment(true)}
@@ -347,7 +345,6 @@ export default function AnimeCard({
           </div>
         </div>
 
-        {/* КНОПКА МЕНЮ (ТРИ ТОЧКИ) - ПРАВЫЙ НИЖНИЙ УГОЛ */}
         {!selectMode && (
           <button
             onClick={(e) => {
@@ -369,7 +366,34 @@ export default function AnimeCard({
         )}
       </div>
 
-      {/* Контекстное меню */}
+      {/* МОДАЛКА УВЕЛИЧЕННОЙ ОБЛОЖКИ — 70% высоты, закрывается по клику на изображение */}
+      {showFullImage && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[400] p-4 animate-fade-in cursor-zoom-out"
+          onClick={() => setShowFullImage(false)}
+        >
+          <button 
+            onClick={() => setShowFullImage(false)}
+            className="absolute top-6 right-6 w-12 h-12 rounded-full bg-red-900/80 hover:bg-red-700 border-2 border-red-500 flex items-center justify-center text-white text-2xl font-bold transition-all hover:scale-110 z-50"
+          >
+            ✕
+          </button>
+          
+          <img 
+            src={anime.image_url} 
+            alt={anime.title}
+            onClick={() => setShowFullImage(false)}
+            className="max-w-full max-h-[70vh] object-contain rounded-2xl shadow-2xl shadow-black/80 animate-fade-in"
+            onError={(e) => { e.target.src = 'https://images.meme-arsenal.com/31f2e18074a78fed6adf2284b5ff3e71.jpg'; }}
+          />
+          
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-black/70 px-6 py-3 rounded-xl border border-red-900/50">
+            <p className="text-white font-bold text-lg text-center">{anime.title}</p>
+            <p className="text-gray-400 text-sm text-center mt-1">Нажми в любом месте чтобы закрыть</p>
+          </div>
+        </div>
+      )}
+
       {showContextMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowContextMenu(false)} />
@@ -385,9 +409,8 @@ export default function AnimeCard({
             }}
           >
             <div className="p-2 min-w-[200px]">
-              <button onClick={() => { setIsEditing(true); setShowContextMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2">️ Редактировать</button>
+              <button onClick={() => { setIsEditing(true); setShowContextMenu(false); }} className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2">✏️ Редактировать</button>
               
-              {/* ОБРАТНЫЙ ОТСЧЁТ — только для папки "Ожидаю" */}
               {isInWaitlist && (
                 <>
                   <div className="border-t border-red-900/30 my-1"></div>
@@ -412,7 +435,6 @@ export default function AnimeCard({
                 </>
               )}
 
-              {/* ЗАМЕТКА */}
               <button 
                 onClick={() => { 
                   onToggleNote(anime.id, !showNote); 
@@ -420,7 +442,7 @@ export default function AnimeCard({
                 }} 
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2"
               >
-                {showNote ? '📝 Скрыть заметку' : '📝 Показать заметку'}
+                {showNote ? ' Скрыть заметку' : '📝 Показать заметку'}
                 {showNote && <span className="text-green-400 font-bold ml-auto">✓</span>}
               </button>
 
@@ -429,9 +451,9 @@ export default function AnimeCard({
               {[
                 { id: 'watching', name: '▶️ В процессе' },
                 { id: 'completed', name: '⭐ Просмотренные' },
-                { id: 'planned', name: '📌 Запланированные' },
+                { id: 'planned', name: ' Запланированные' },
                 { id: 'on_hold', name: '⏸️ Ожидаю' },
-                { id: 'dropped', name: '️ Заброшенные' },
+                { id: 'dropped', name: '🗑️ Заброшенные' },
                 { id: 'closed', name: '🔒 Закрытые' }
               ].filter(c => c.id !== anime.category_id).map((item) => (
                 <button key={item.id} onClick={() => { onMove(anime.id, item.id); setShowContextMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition">
@@ -463,7 +485,6 @@ export default function AnimeCard({
         </>
       )}
 
-      {/* МОДАЛКА УСТАНОВКИ ДАТЫ — только дата, без времени */}
       {showCountdownModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[320] p-4">
           <div className="bg-gray-900 border-2 border-red-700/50 rounded-2xl max-w-md w-full shadow-2xl">

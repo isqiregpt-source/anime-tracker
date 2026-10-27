@@ -208,13 +208,18 @@ export default function AnimeCard({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onDragEnd={onDragEnd}
+        onClick={() => {
+          if (selectMode) {
+            onSelect(anime.id);
+          }
+        }}
         className={`relative flex items-stretch gap-5 p-5 bg-black/60 backdrop-blur-sm rounded-2xl border transition-all duration-300 transform hover:shadow-xl hover:shadow-red-900/20 animate-fade-in z-10 hover:z-20 ${
           isDragging ? 'opacity-40 scale-95 border-yellow-500' : ''
         } ${
           dragOverId === anime.id ? 'border-t-4 border-t-yellow-400' : ''
         } ${
           isSelected ? 'border-yellow-500 bg-yellow-900/10' : 'border-red-900/30 hover:border-red-700/50'
-        } ${!selectMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        } ${!selectMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
       >
         {/* АНИМИРОВАННАЯ КНОПКА УДАЛЕНИЯ - ПРАВЫЙ ВЕРХНИЙ УГОЛ */}
         {!selectMode && (

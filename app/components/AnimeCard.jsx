@@ -208,7 +208,7 @@ export default function AnimeCard({
             onSelect(anime.id);
           }
         }}
-        className={`relative flex items-stretch gap-5 p-5 bg-black/60 backdrop-blur-sm rounded-2xl border transition-all duration-300 transform hover:shadow-xl hover:shadow-red-900/20 animate-fade-in z-10 hover:z-20 ${
+        className={`relative flex items-stretch gap-3 lg:gap-5 p-3 lg:p-5 bg-black/60 backdrop-blur-sm rounded-2xl border transition-all duration-300 transform hover:shadow-xl hover:shadow-red-900/20 animate-fade-in z-10 hover:z-20 ${
           isDragging ? 'opacity-40 scale-95 border-yellow-500' : ''
         } ${
           dragOverId === anime.id ? 'border-t-4 border-t-yellow-400' : ''
@@ -251,7 +251,7 @@ export default function AnimeCard({
           src={anime.image_url} 
           alt={anime.title} 
           onClick={handleImageClick}
-          className="w-36 h-52 object-cover rounded-xl flex-shrink-0 shadow-lg shadow-black/50 cursor-zoom-in hover:scale-105 transition-transform duration-300"
+          className="w-24 h-36 sm:w-32 sm:h-48 lg:w-36 lg:h-52 object-cover rounded-xl flex-shrink-0 shadow-lg shadow-black/50 cursor-zoom-in hover:scale-105 transition-transform duration-300"
           onError={(e) => { e.target.src = 'https://images.meme-arsenal.com/31f2e18074a78fed6adf2284b5ff3e71.jpg'; }}
           title="Нажми для увеличения"
         />
@@ -259,7 +259,7 @@ export default function AnimeCard({
         <div className="flex-1 min-w-0 flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <h3 className="font-bold text-white text-2xl truncate">{anime.title}</h3>
+              <h3 className="font-bold text-white text-lg sm:text-xl lg:text-2xl truncate">{anime.title}</h3>
               {anime.custom_tags && anime.custom_tags.length > 0 && (
                 <div className="flex gap-2">
                   {anime.custom_tags.map(tagId => {
@@ -271,7 +271,7 @@ export default function AnimeCard({
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3 text-base">
+            <div className="flex items-center gap-2 lg:gap-3 text-sm lg:text-base flex-wrap">
               <span className="text-gray-300">📅 {anime.year}</span>
               <span className="text-gray-600">•</span>
               <span className="text-gray-300">🎬 {anime.episodes} эп.</span>
@@ -280,13 +280,13 @@ export default function AnimeCard({
             {anime.genres && anime.genres.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {anime.genres.slice(0, 5).map((genre) => (
-                  <span key={genre} className="px-3 py-1 bg-red-900/30 border border-red-900/50 rounded-full text-sm text-red-300 font-medium">{genre}</span>
+                  <span key={genre} className="px-2 py-0.5 lg:px-3 lg:py-1 bg-red-900/30 border border-red-900/50 rounded-full text-xs lg:text-sm text-red-300 font-medium">{genre}</span>
                 ))}
               </div>
             )}
 
             {isInWaitlist && timeLeft && (
-              <div className={`w-full text-center py-3 px-4 rounded-xl font-black text-2xl tracking-wider shadow-2xl border-2 ${
+              <div className={`w-full text-center py-2 lg:py-3 px-3 lg:px-4 rounded-xl font-black text-lg sm:text-xl lg:text-2xl tracking-wider shadow-2xl border-2 ${
                 timeLeft.expired 
                   ? 'bg-red-700 text-white border-red-500 animate-pulse' 
                   : 'bg-gradient-to-r from-red-900 via-red-800 to-red-900 text-red-200 border-red-700/70'
@@ -298,7 +298,7 @@ export default function AnimeCard({
             {showNote && (
               <div 
                 onClick={() => setIsEditingComment(true)}
-                className="w-full p-4 rounded-xl bg-black/15 hover:bg-black/25 transition cursor-text border border-red-900/20 hover:border-red-700/40"
+                className="w-full p-3 lg:p-4 rounded-xl bg-black/15 hover:bg-black/25 transition cursor-text border border-red-900/20 hover:border-red-700/40"
               >
                 {isEditingComment ? (
                   <div className="space-y-2">
@@ -318,7 +318,7 @@ export default function AnimeCard({
                 ) : (
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-red-500 uppercase tracking-wide">💬 Заметка</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-red-500 uppercase tracking-wide"> Заметка</span>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setIsEditingComment(true); }}
                         className="text-xs text-gray-500 hover:text-red-400 transition"
@@ -327,7 +327,7 @@ export default function AnimeCard({
                       </button>
                     </div>
                     {anime.comment ? (
-                      <p className="text-base text-red-400 whitespace-pre-wrap break-words leading-relaxed font-medium">{anime.comment}</p>
+                      <p className="text-sm lg:text-base text-red-400 whitespace-pre-wrap break-words leading-relaxed font-medium">{anime.comment}</p>
                     ) : (
                       <p className="text-base text-red-400/50 italic">+ Нажми чтобы добавить заметку</p>
                     )}
@@ -338,7 +338,7 @@ export default function AnimeCard({
           </div>
 
           <div className="mt-4">
-            <button onClick={handleWatch} className="px-6 py-3 bg-gradient-to-b from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 rounded-xl text-white text-base font-black transition-all duration-300 flex items-center gap-2 transform hover:scale-105 shadow-xl shadow-red-900/50 border border-red-500/30 uppercase tracking-wider">
+            <button onClick={handleWatch} className="px-4 py-2 lg:px-6 lg:py-3 bg-gradient-to-b from-red-600 to-red-800 text-sm lg:text-base hover:from-red-500 hover:to-red-700 rounded-xl text-white text-base font-black transition-all duration-300 flex items-center gap-2 transform hover:scale-105 shadow-xl shadow-red-900/50 border border-red-500/30 uppercase tracking-wider">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               Смотреть
             </button>

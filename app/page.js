@@ -28,6 +28,7 @@ export default function Home() {
   
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const scrollIntervalRef = useRef(null);
   const lastDragOverTime = useRef(0);
 
@@ -534,84 +535,112 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-72 bg-black/80 backdrop-blur-sm p-6 border-r border-red-900/20 flex-shrink-0 flex flex-col sticky top-0 h-screen overflow-y-auto">
-        <h1 className="text-2xl font-bold mb-4 text-red-600 drop-shadow-lg">Pedikovatiy anime tracker</h1>
-        {currentProfile && (
-          <div className="mb-4 p-3 bg-black/40 border border-red-900/30 rounded-xl flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-black text-white flex-shrink-0" style={{ backgroundColor: currentProfile.avatar_color }}>
-              {currentProfile.name.charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-white font-bold truncate">{currentProfile.name}</p>
-              {currentProfile.is_admin && <p className="text-xs text-red-400">Администратор</p>}
-            </div>
-          </div>
-        )}
-        <div className="mb-6"><GlobalSearch animeLists={animeLists} onSelectAnime={handleSelectAnime} /></div>
-        <nav className="space-y-2 flex-1">
-          {categories.map((category) => {
-            const count = (animeLists[category.id] || []).length;
-            const isActive = category.id === activeCategory;
-            return (
-              <button
-                key={category.id}
-                onClick={() => setActiveCategory(category.id)}
-                className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 flex items-center justify-between transform hover:scale-105 focus:outline-none focus:ring-0 ${
-                  isActive ? 'bg-gradient-to-r from-red-900 to-red-800 text-white shadow-lg shadow-red-900/50' : 'bg-black/40 hover:bg-red-900/20 text-gray-300 border border-red-900/20'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="text-xl">{category.icon}</span>
-                  <span className="sidebar-folder-name font-medium">{category.name} <span className={`text-xs font-bold ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>({count})</span></span>
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+{/* КНОПКА МЕНЮ ДЛЯ ТЕЛЕФОНОВ */}
+<button
+  onClick={() => setShowMobileMenu(true)}
+  className="lg:hidden fixed top-4 left-4 z-[200] w-12 h-12 rounded-full bg-red-900/80 border-2 border-red-700 flex items-center justify-center text-white shadow-lg"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+</button>
 
-      <main className="flex-1 p-8 relative">
-        <div className="flex items-center justify-between mb-6 pr-20">
-          <h2 className="text-4xl font-bold text-white drop-shadow-lg">{currentCategory?.icon} {currentCategory?.name}</h2>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-400 text-sm bg-black/50 px-3 py-1 rounded-full">{filteredList.length} из {currentList.length} {currentList.length === 1 ? 'тайтл' : 'тайтлов'}</span>
-            <button
-              onClick={() => { setSelectMode(!selectMode); setSelectedIds([]); }}
-              className={`px-4 py-2 rounded-xl font-bold transition-all focus:outline-none focus:ring-0 ${
-                selectMode ? 'bg-gradient-to-r from-yellow-600 to-yellow-700 text-white shadow-lg shadow-yellow-900/50' : 'bg-black/60 border border-red-900/30 text-gray-400 hover:text-white hover:border-red-700'
-              }`}
-            >
-              {selectMode ? '✓ Режим выбора' : ' Выбрать'}
-            </button>
+{/* БОКОВАЯ ПАНЕЛЬ (АДАПТИВНАЯ) */}
+<aside className={`fixed lg:static inset-y-0 left-0 z-[250] w-72 bg-black/95 lg:bg-black/80 backdrop-blur-sm p-6 border-r border-red-900/20 flex-shrink-0 flex flex-col h-screen overflow-y-auto transform transition-transform duration-300 ${
+  showMobileMenu ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+}`}>
+  
+  {/* Крестик для закрытия на телефоне */}
+  <button
+    onClick={() => setShowMobileMenu(false)}
+    className="lg:hidden absolute top-4 right-4 w-10 h-10 rounded-full bg-red-900/80 border-2 border-red-700 flex items-center justify-center text-white"
+  >
+    ✕
+  </button>
 
-            <button
-              onClick={() => setShowManualAdd(true)}
-  className="p-5 rounded-full bg-gradient-to-br from-green-600 to-green-800 border-2 border-green-500 text-white hover:from-green-500 hover:to-green-700 shadow-xl shadow-green-600/50 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-0 animate-pulse"
-              title="Добавить аниме вручную"
-              style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.6), 0 0 40px rgba(34, 197, 94, 0.3)' }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
+  <h1 className="text-xl lg:text-2xl font-bold mb-4 text-red-600 drop-shadow-lg mt-8 lg:mt-0">Pedikovatiy anime tracker</h1>
+  {currentProfile && (
+    <div className="mb-4 p-3 bg-black/40 border border-red-900/30 rounded-xl flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-black text-white flex-shrink-0" style={{ backgroundColor: currentProfile.avatar_color }}>
+        {currentProfile.name.charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white font-bold truncate">{currentProfile.name}</p>
+        {currentProfile.is_admin && <p className="text-xs text-red-400">Администратор</p>}
+      </div>
+    </div>
+  )}
+  <div className="mb-6"><GlobalSearch animeLists={animeLists} onSelectAnime={(anime) => { handleSelectAnime(anime); setShowMobileMenu(false); }} /></div>
+  <nav className="space-y-2 flex-1">
+    {categories.map((category) => {
+      const count = (animeLists[category.id] || []).length;
+      const isActive = category.id === activeCategory;
+      return (
+        <button
+          key={category.id}
+          onClick={() => { setActiveCategory(category.id); setShowMobileMenu(false); }}
+          className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 flex items-center justify-between transform hover:scale-105 focus:outline-none focus:ring-0 ${
+            isActive ? 'bg-gradient-to-r from-red-900 to-red-800 text-white shadow-lg shadow-red-900/50' : 'bg-black/40 hover:bg-red-900/20 text-gray-300 border border-red-900/20'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-xl">{category.icon}</span>
+            <span className="sidebar-folder-name font-medium">{category.name} <span className={`text-xs font-bold ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>({count})</span></span>
+          </span>
+        </button>
+      );
+    })}
+  </nav>
+</aside>
 
-            <button
-              onClick={() => setShowSearchBar(!showSearchBar)}
-              className={`p-5 rounded-full transition-all duration-300 border-2 transform hover:scale-110 focus:outline-none focus:ring-0 ${
-                showSearchBar ? 'bg-gradient-to-br from-red-500 to-red-700 border-red-400 text-white shadow-2xl shadow-red-500/70' : 'bg-gradient-to-br from-red-600 to-red-800 border-red-500 text-white hover:from-red-500 hover:to-red-700 shadow-xl shadow-red-600/50'
-              }`}
-              title="Добавить аниме из интернета"
-              style={{ boxShadow: showSearchBar ? '0 0 30px rgba(220, 20, 60, 0.8), 0 0 60px rgba(220, 20, 60, 0.4)' : '0 0 20px rgba(220, 20, 60, 0.6), 0 0 40px rgba(220, 20, 60, 0.3)' }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
-          </div>
-        </div>
+{/* Затемнение фона при открытом меню */}
+{showMobileMenu && (
+  <div 
+    className="lg:hidden fixed inset-0 bg-black/70 z-[240]"
+    onClick={() => setShowMobileMenu(false)}
+  />
+)}
+
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 relative pt-20 lg:pt-8">
+       <div className="flex items-center justify-between mb-4 lg:mb-6 pr-16 lg:pr-20 flex-wrap gap-2">
+  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white drop-shadow-lg">{currentCategory?.icon} {currentCategory?.name}</h2>
+  <div className="flex items-center gap-2 lg:gap-4 flex-wrap">
+    <span className="text-xs sm:text-sm text-gray-400 bg-black/50 px-2 py-1 lg:px-3 lg:py-1 rounded-full">{filteredList.length} из {currentList.length}</span>
+    <button
+      onClick={() => { setSelectMode(!selectMode); setSelectedIds([]); }}
+      className={`px-3 py-2 lg:px-4 lg:py-2 rounded-xl font-bold transition-all focus:outline-none focus:ring-0 text-sm lg:text-base ${
+        selectMode ? 'bg-gradient-to-r from-yellow-600 to-yellow-700 text-white shadow-lg shadow-yellow-900/50' : 'bg-black/60 border border-red-900/30 text-gray-400 hover:text-white hover:border-red-700'
+      }`}
+    >
+      {selectMode ? '✓' : '☐'}
+    </button>
+
+    <button
+      onClick={() => setShowManualAdd(true)}
+      className="p-4 lg:p-5 rounded-full bg-gradient-to-br from-green-600 to-green-800 border-2 border-green-500 text-white hover:from-green-500 hover:to-green-700 shadow-xl shadow-green-600/50 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-0 animate-pulse"
+      title="Добавить аниме вручную"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 lg:h-8 lg:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+      </svg>
+    </button>
+
+    <button
+      onClick={() => setShowSearchBar(!showSearchBar)}
+      className={`p-4 lg:p-5 rounded-full transition-all duration-300 border-2 transform hover:scale-110 focus:outline-none focus:ring-0 ${
+        showSearchBar ? 'bg-gradient-to-br from-red-500 to-red-700 border-red-400 text-white shadow-2xl shadow-red-500/70' : 'bg-gradient-to-br from-red-600 to-red-800 border-red-500 text-white hover:from-red-500 hover:to-red-700 shadow-xl shadow-red-600/50'
+      }`}
+      title="Добавить аниме из интернета"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 lg:h-8 lg:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </button>
+  </div>
+</div>
         
         {selectMode && (
-          <div className="mb-6 p-4 bg-yellow-900/20 border-2 border-yellow-700/50 rounded-xl">
+          <div className="mb-4 lg:mb-6 p-3 lg:p-4 bg-yellow-900/20 border-2 border-yellow-700/50 rounded-xl">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
                 <span className="text-yellow-400 font-bold">Выбрано: {selectedIds.length}</span>
@@ -699,13 +728,13 @@ export default function Home() {
 
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className={`fixed bottom-8 left-8 p-5 rounded-full transition-all duration-300 border-2 transform hover:scale-110 z-[300] focus:outline-none focus:ring-0 ${
+          className={`fixed bottom-6 left-6 lg:bottom-8 lg:left-8 p-4 lg:p-5 rounded-full transition-all duration-300 border-2 transform hover:scale-110 z-[300] focus:outline-none focus:ring-0 ${
             showSettings ? 'bg-gradient-to-br from-red-500 to-red-700 border-red-400 text-white shadow-2xl shadow-red-500/70 rotate-90' : 'bg-gradient-to-br from-red-600 to-red-800 border-red-500 text-white hover:from-red-500 hover:to-red-700 shadow-xl shadow-red-600/50'
           }`}
           title="Настройки"
           style={{ boxShadow: showSettings ? '0 0 30px rgba(220, 20, 60, 0.8), 0 0 60px rgba(220, 20, 60, 0.4)' : '0 0 20px rgba(220, 20, 60, 0.6), 0 0 40px rgba(220, 20, 60, 0.3)' }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 lg:h-8 lg:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>

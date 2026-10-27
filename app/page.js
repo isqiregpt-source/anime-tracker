@@ -138,8 +138,8 @@ export default function Home() {
   const startAutoScroll = (direction) => {
     stopAutoScroll();
     scrollIntervalRef.current = setInterval(() => {
-      window.scrollBy({ top: direction * 10, behavior: 'smooth' });
-    }, 50);
+      window.scrollBy({ top: direction * 25, behavior: 'auto' });
+    }, 30);
   };
 
   const stopAutoScroll = () => {

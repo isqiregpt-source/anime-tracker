@@ -15,7 +15,7 @@ export default function Home() {
   const router = useRouter();
   const [currentProfile, setCurrentProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [categories, setCategories] = useState(getAllCategories());
+  const [categories, setCategories] = useState([]);
   const [activeCategory, setActiveCategory] = useState('watching');
   const [animeLists, setAnimeLists] = useState({});
   const [showSearchBar, setShowSearchBar] = useState(false);
@@ -36,7 +36,6 @@ export default function Home() {
         if (savedProfile) {
           const profile = JSON.parse(savedProfile);
           if (profile && profile.id) {
-            // Обновляем данные профиля из Supabase для актуального is_admin
             const { data: updatedProfile, error } = await supabase
               .from('profiles')
               .select('*')
@@ -80,22 +79,47 @@ export default function Home() {
 
   useEffect(() => {
     if (!currentProfile) return;
-    const fetchAnime = async () => {
-      console.log('Загрузка аниме для профиля:', currentProfile.id);
-      const { data, error } = await supabase
+    
+    const fetchData = async () => {
+      console.log('Загрузка данных для профиля:', currentProfile.id);
+      
+      // Загружаем папки профиля
+      const { data: customCats, error: catError } = await supabase
+        .from('custom_categories')
+        .select('*')
+        .eq('profile_id', currentProfile.id)
+        .order('sort_order', { ascending: true });
+
+      let allCategories = getAllCategories();
+      
+      if (!catError && customCats && customCats.length > 0) {
+        const customCategories = customCats.map(c => ({
+          id: c.id,
+          name: c.name,
+          icon: c.icon || '📁',
+          isCustom: true
+        }));
+        allCategories = [...allCategories, ...customCategories];
+        console.log('Папки загружены:', customCategories.length);
+      }
+      
+      setCategories(allCategories);
+
+      // Загружаем аниме
+      const { data: animeData, error: animeError } = await supabase
         .from('anime')
         .select('*')
         .eq('profile_id', currentProfile.id)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Ошибка загрузки аниме:', error);
+      if (animeError) {
+        console.error('Ошибка загрузки аниме:', animeError);
       } else {
-        console.log('Аниме загружено:', data?.length || 0);
+        console.log('Аниме загружено:', animeData?.length || 0);
         const grouped = {};
-        categories.forEach(cat => { grouped[cat.id] = []; });
-        data.forEach(anime => {
+        allCategories.forEach(cat => { grouped[cat.id] = []; });
+        animeData.forEach(anime => {
           const cat = anime.category_id || 'watching';
           if (!grouped[cat]) grouped[cat] = [];
           grouped[cat].push(anime);
@@ -103,7 +127,8 @@ export default function Home() {
         setAnimeLists(grouped);
       }
     };
-    fetchAnime();
+    
+    fetchData();
   }, [currentProfile]);
 
   useEffect(() => { 
@@ -479,7 +504,7 @@ export default function Home() {
                 selectMode ? 'bg-gradient-to-r from-yellow-600 to-yellow-700 text-white shadow-lg shadow-yellow-900/50' : 'bg-black/60 border border-red-900/30 text-gray-400 hover:text-white hover:border-red-700'
               }`}
             >
-              {selectMode ? '✓ Режим выбора' : ' Выбрать'}
+              {selectMode ? '✓ Режим выбора' : '☐ Выбрать'}
             </button>
 
             <button
@@ -549,7 +574,7 @@ export default function Home() {
           <div className="mb-6 p-4 bg-black/60 backdrop-blur-sm border border-red-900/30 rounded-xl animate-fade-in relative z-40">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-red-400">Добавить аниме</h3>
-              <button onClick={() => setShowSearchBar(false)} className="text-gray-400 hover:text-red-400 text-xl transition font-bold px-2 focus:outline-none focus:ring-0">✕</button>
+              <button onClick={() => setShowSearchBar(false)} className="text-gray-400 hover:text-red-400 text-xl transition font-bold px-2 focus:outline-none focus:ring-0"></button>
             </div>
             <SearchBar onAddAnime={handleAddAnime} />
           </div>

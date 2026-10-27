@@ -5,8 +5,6 @@ import CoverSearch from './CoverSearch';
 import ExcelImport from './ExcelImport';
 import { 
   getAllCategories, 
-  addCustomCategory, 
-  deleteCustomCategory,
   isDefaultCategory
 } from '../utils/categories';
 import { supabase } from '../lib/supabase';
@@ -30,7 +28,7 @@ export default function SettingsPanel({
 
   const [categories, setCategories] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryIcon, setNewCategoryIcon] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('📁');
 
   const [tags, setTags] = useState([]);
   const [newTagName, setNewTagName] = useState('');
@@ -47,14 +45,14 @@ export default function SettingsPanel({
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // ЕДИНСТВЕННОЕ объявление isAdmin
   const isAdmin = currentProfile?.is_admin === true;
 
   useEffect(() => {
     setCategories(getAllCategories());
     loadTags();
     loadAllProfiles();
-  }, []);
+    loadCustomCategories();
+  }, [currentProfile]);
 
   const loadTags = () => {
     try {
@@ -93,6 +91,38 @@ export default function SettingsPanel({
     }
   };
 
+  const loadCustomCategories = async () => {
+    if (!currentProfile?.id) return;
+    
+    console.log('Загрузка папок для профиля:', currentProfile.id);
+    
+    const { data, error } = await supabase
+      .from('custom_categories')
+      .select('*')
+      .eq('profile_id', currentProfile.id)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      console.error('Ошибка загрузки папок:', error);
+      return;
+    }
+
+    const systemCats = getAllCategories();
+    
+    if (data && data.length > 0) {
+      const customCats = data.map(c => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon || '',
+        isCustom: true
+      }));
+      setCategories([...systemCats, ...customCats]);
+      console.log('Папки загружены:', customCats.length);
+    } else {
+      setCategories(systemCats);
+    }
+  };
+
   const handleBgChange = () => {
     localStorage.setItem('gradientStart', bgStart);
     localStorage.setItem('gradientEnd', bgEnd);
@@ -109,35 +139,66 @@ export default function SettingsPanel({
     document.body.style.backgroundAttachment = 'fixed';
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
       alert('Введи название папки!');
       return;
     }
+    
     const newCat = {
-      id: `custom_${Date.now()}`,
+      profile_id: currentProfile.id,
       name: newCategoryName.trim(),
-      icon: newCategoryIcon,
-      isCustom: true
+      icon: newCategoryIcon || '📁',
+      sort_order: categories.length,
+      created_at: new Date().toISOString()
     };
-    addCustomCategory(newCat);
-    setCategories(getAllCategories());
+
+    console.log('Создание папки:', newCat);
+
+    const { data, error } = await supabase
+      .from('custom_categories')
+      .insert(newCat)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Ошибка создания папки:', error);
+      alert(`Ошибка: ${error.message}`);
+      return;
+    }
+
+    const updatedCategories = [
+      ...categories,
+      { id: data.id, name: data.name, icon: data.icon, isCustom: true }
+    ];
+    setCategories(updatedCategories);
     setNewCategoryName('');
     setNewCategoryIcon('');
+    alert(`✅ Папка "${data.name}" создана!`);
   };
 
-  const handleDeleteCategory = (catId) => {
+  const handleDeleteCategory = async (catId) => {
     if (isDefaultCategory(catId)) {
       alert('Системные папки нельзя удалять!');
       return;
     }
     if (!confirm(`Удалить папку "${categories.find(c => c.id === catId)?.name}"?`)) return;
     
+    const { error } = await supabase
+      .from('custom_categories')
+      .delete()
+      .eq('id', catId);
+
+    if (error) {
+      alert(`Ошибка удаления: ${error.message}`);
+      return;
+    }
+
     const catAnime = animeLists[catId] || [];
     if (catAnime.length > 0) {
-      catAnime.forEach(anime => {
-        supabase.from('anime').update({ category_id: 'planned' }).eq('id', anime.id);
-      });
+      for (const anime of catAnime) {
+        await supabase.from('anime').update({ category_id: 'planned' }).eq('id', anime.id);
+      }
       setAnimeLists(prev => {
         const newList = { ...prev };
         newList['planned'] = [...(newList['planned'] || []), ...catAnime.map(a => ({ ...a, category_id: 'planned' }))];
@@ -146,8 +207,8 @@ export default function SettingsPanel({
       });
     }
     
-    deleteCustomCategory(catId);
-    setCategories(getAllCategories());
+    const updatedCategories = categories.filter(c => c.id !== catId);
+    setCategories(updatedCategories);
     if (activeCategory === catId) setActiveCategory('watching');
   };
 
@@ -182,22 +243,20 @@ export default function SettingsPanel({
     });
   };
 
-  // ИСПРАВЛЕНО: генерируем настоящий UUID
   const handleCreateProfile = async () => {
     if (!newProfileName.trim()) {
       setProfileMessage('❌ Введи имя профиля!');
       return;
     }
     if (!newProfilePassword.trim() || newProfilePassword.length < 4) {
-      setProfileMessage(' Пароль должен быть минимум 4 символа!');
+      setProfileMessage('❌ Пароль должен быть минимум 4 символа!');
       return;
     }
     if (allProfiles.find(p => p.name.toLowerCase() === newProfileName.trim().toLowerCase())) {
-      setProfileMessage(' Профиль с таким именем уже существует!');
+      setProfileMessage('❌ Профиль с таким именем уже существует!');
       return;
     }
 
-    // Генерируем настоящий UUID
     const newId = crypto.randomUUID();
 
     const newProfile = {
@@ -209,8 +268,6 @@ export default function SettingsPanel({
       created_at: new Date().toISOString()
     };
 
-    console.log('Создание профиля:', newProfile);
-
     const { data, error } = await supabase
       .from('profiles')
       .insert(newProfile)
@@ -221,7 +278,6 @@ export default function SettingsPanel({
       console.error('Ошибка создания профиля:', error);
       setProfileMessage(`❌ Ошибка: ${error.message}`);
     } else {
-      console.log('Профиль создан:', data);
       await loadAllProfiles();
       setNewProfileName('');
       setNewProfilePassword('');
@@ -230,7 +286,6 @@ export default function SettingsPanel({
     }
   };
 
-  // ВХОД БЕЗ ПАРОЛЯ (только для администратора)
   const handleAdminLogin = (profile) => {
     if (!isAdmin) {
       alert('Только администратор может входить без пароля!');
@@ -268,7 +323,7 @@ export default function SettingsPanel({
       setLoginError('');
       window.location.reload();
     } else {
-      setLoginError(' Неверный пароль!');
+      setLoginError('❌ Неверный пароль!');
     }
   };
 
@@ -345,15 +400,15 @@ export default function SettingsPanel({
     alert(`✅ Пароль для профиля "${profile.name}" изменён!`);
   };
 
-  const iconOptions = ['📁', '📂', '', '⭐', '🔥', '💎', '🌟', '🎭', '🎪', '🎨', '🎵', '🎮', '', '🌙', '☀️', '🌊', '🌸', '🏆', '🚀', '💫'];
+  const iconOptions = ['📁', '📂', '', '⭐', '🔥', '', '🌟', '🎭', '🎪', '🎨', '', '🎮', '⚡', '🌙', '☀️', '🌊', '🌸', '', '🚀', '💫'];
 
   const tabs = [
     { id: 'profile', name: '👤 Профиль' },
-    { id: 'accounts', name: '👥 Профили' },
+    { id: 'accounts', name: ' Профили' },
     { id: 'appearance', name: '🎨 Фон' },
-    { id: 'folders', name: '📁 Папки' },
+    { id: 'folders', name: ' Папки' },
     { id: 'tags', name: '🏷️ Теги' },
-    { id: 'tools', name: '🛠️ Инструменты' },
+    { id: 'tools', name: '️ Инструменты' },
   ];
 
   return (
@@ -420,7 +475,6 @@ export default function SettingsPanel({
               <div className="space-y-4">
                 <h3 className="text-lg font-bold text-white mb-3">👥 Управление профилями</h3>
                 
-                {/* Отладочная информация */}
                 <div className="p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg mb-4">
                   <p className="text-xs text-blue-300">
                     Текущий: {currentProfile?.name} | is_admin: {String(isAdmin)} | Всего: {allProfiles.length}
@@ -467,7 +521,6 @@ export default function SettingsPanel({
                           <div className="flex gap-1 ml-3 flex-wrap">
                             {profile.id !== currentProfile?.id && (
                               <>
-                                {/* Кнопка "Войти без пароля" — только для админа */}
                                 {isAdmin && (
                                   <button 
                                     onClick={() => handleAdminLogin(profile)}
@@ -478,7 +531,6 @@ export default function SettingsPanel({
                                   </button>
                                 )}
                                 
-                                {/* Кнопка "Войти с паролем" — для всех */}
                                 {!isAdmin && (
                                   <button 
                                     onClick={() => handleRequestLogin(profile)}
@@ -488,7 +540,6 @@ export default function SettingsPanel({
                                   </button>
                                 )}
                                 
-                                {/* Кнопки управления — только для админа */}
                                 {isAdmin && (
                                   <>
                                     <button 
@@ -529,7 +580,7 @@ export default function SettingsPanel({
 
                 {isAdmin && (
                   <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
-                    <p className="text-sm text-gray-400 font-bold">➕ Создать новый профиль (только для администратора):</p>
+                    <p className="text-sm text-gray-400 font-bold"> Создать новый профиль (только для администратора):</p>
                     
                     <div>
                       <label className="block text-sm text-gray-400 mb-1">Имя профиля:</label>
@@ -585,7 +636,7 @@ export default function SettingsPanel({
                 {!isAdmin && (
                   <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-xl">
                     <p className="text-sm text-yellow-300">
-                      <strong>⚠️ Только администратор</strong> может создавать новые профили и управлять правами.
+                      <strong>️ Только администратор</strong> может создавать новые профили и управлять правами.
                     </p>
                   </div>
                 )}
@@ -594,7 +645,7 @@ export default function SettingsPanel({
 
             {activeTab === 'appearance' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">🎨 Цвет фона</h3>
+                <h3 className="text-lg font-bold text-white mb-3"> Цвет фона</h3>
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-4">
                   <div>
                     <label className="block text-sm text-gray-400 mb-2">Цвет начала градиента:</label>
@@ -638,7 +689,14 @@ export default function SettingsPanel({
 
             {activeTab === 'folders' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3"> Управление папками</h3>
+                <h3 className="text-lg font-bold text-white mb-3">📁 Управление папками</h3>
+                
+                <div className="p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg mb-4">
+                  <p className="text-xs text-blue-300">
+                    Профиль: {currentProfile?.name} | Папок: {categories.filter(c => c.isCustom).length}
+                  </p>
+                </div>
+
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
                   <p className="text-sm text-gray-400 font-bold">Добавить новую папку:</p>
                   <div className="flex gap-2">
@@ -666,6 +724,7 @@ export default function SettingsPanel({
                     </button>
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   {categories.map(cat => (
                     <div 
@@ -700,7 +759,7 @@ export default function SettingsPanel({
 
             {activeTab === 'tags' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">️ Управление тегами</h3>
+                <h3 className="text-lg font-bold text-white mb-3">🏷️ Управление тегами</h3>
                 <div className="p-4 bg-black/40 border border-red-900/30 rounded-xl space-y-3">
                   <p className="text-sm text-gray-400 font-bold">Добавить новый тег:</p>
                   <div className="flex gap-2">
@@ -753,7 +812,7 @@ export default function SettingsPanel({
 
             {activeTab === 'tools' && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-white mb-3">️ Инструменты</h3>
+                <h3 className="text-lg font-bold text-white mb-3">🛠️ Инструменты</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button 
                     onClick={() => setShowImport(true)}
@@ -769,7 +828,7 @@ export default function SettingsPanel({
                     onClick={() => setShowCoverSearch(true)}
                     className="px-4 py-4 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/50 rounded-lg text-purple-200 font-bold transition text-left flex items-center gap-3"
                   >
-                    <span className="text-2xl">️</span>
+                    <span className="text-2xl">🖼️</span>
                     <div>
                       <p className="font-bold">Найти обложки</p>
                       <p className="text-xs text-purple-300/70">Автоматический поиск постеров</p>
@@ -812,7 +871,7 @@ export default function SettingsPanel({
                 <div>
                   <p className="text-white font-bold text-lg">{selectedProfileForLogin.name}</p>
                   {selectedProfileForLogin.is_admin && (
-                    <p className="text-xs text-red-400"> Администратор</p>
+                    <p className="text-xs text-red-400">👑 Администратор</p>
                   )}
                 </div>
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import SearchBar from './components/SearchBar';
 import AnimeCard from './components/AnimeCard';
@@ -28,6 +28,8 @@ export default function Home() {
   
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
+  const scrollIntervalRef = useRef(null);
+  const lastDragOverTime = useRef(0);
 
   useEffect(() => {
     const checkProfile = async () => {
@@ -83,7 +85,6 @@ export default function Home() {
     const fetchData = async () => {
       console.log('Загрузка данных для профиля:', currentProfile.id);
       
-      // Загружаем папки профиля
       const { data: customCats, error: catError } = await supabase
         .from('custom_categories')
         .select('*')
@@ -96,16 +97,14 @@ export default function Home() {
         const customCategories = customCats.map(c => ({
           id: c.id,
           name: c.name,
-          icon: c.icon || '',
+          icon: c.icon || '📁',
           isCustom: true
         }));
         allCategories = [...allCategories, ...customCategories];
-        console.log('Папки загружены:', customCategories.length);
       }
       
       setCategories(allCategories);
 
-      // Загружаем аниме
       const { data: animeData, error: animeError } = await supabase
         .from('anime')
         .select('*')
@@ -116,7 +115,6 @@ export default function Home() {
       if (animeError) {
         console.error('Ошибка загрузки аниме:', animeError);
       } else {
-        console.log('Аниме загружено:', animeData?.length || 0);
         const grouped = {};
         allCategories.forEach(cat => { grouped[cat.id] = []; });
         animeData.forEach(anime => {
@@ -135,6 +133,99 @@ export default function Home() {
     setSelectedTags([]); 
     setAlphabetSort(false);
   }, [activeCategory]);
+
+  // АВТОПРОКРУТКА при перетаскивании
+  const startAutoScroll = (direction) => {
+    stopAutoScroll();
+    scrollIntervalRef.current = setInterval(() => {
+      window.scrollBy({ top: direction * 10, behavior: 'smooth' });
+    }, 50);
+  };
+
+  const stopAutoScroll = () => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+  };
+
+  const handleDragStart = (animeId) => {
+    setDragId(animeId);
+  };
+
+  const handleDragOver = (e, animeId) => {
+    e.preventDefault();
+    
+    // Throttle: обновляем не чаще чем раз в 100мс
+    const now = Date.now();
+    if (now - lastDragOverTime.current < 100) return;
+    lastDragOverTime.current = now;
+    
+    if (dragId === animeId) return;
+    setDragOverId(animeId);
+
+    // АВТОПРОКРУТКА: проверяем позицию мыши
+    const mouseY = e.clientY;
+    const windowHeight = window.innerHeight;
+    const scrollThreshold = 100; // пикселей от края
+
+    if (mouseY < scrollThreshold) {
+      // Мышь вверху экрана — скроллим вверх
+      startAutoScroll(-1);
+    } else if (mouseY > windowHeight - scrollThreshold) {
+      // Мышь внизу экрана — скроллим вниз
+      startAutoScroll(1);
+    } else {
+      stopAutoScroll();
+    }
+  };
+
+  const handleDragEnd = () => {
+    stopAutoScroll();
+    setDragId(null);
+    setDragOverId(null);
+  };
+
+  const handleDrop = async (targetId) => {
+    stopAutoScroll();
+    
+    if (!dragId || dragId === targetId) {
+      setDragId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    const currentList = animeLists[activeCategory] || [];
+    const dragIndex = currentList.findIndex(a => a.id === dragId);
+    const dropIndex = currentList.findIndex(a => a.id === targetId);
+    
+    if (dragIndex === -1 || dropIndex === -1) {
+      setDragId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    const newList = [...currentList];
+    const [moved] = newList.splice(dragIndex, 1);
+    newList.splice(dropIndex, 0, moved);
+
+    const updates = newList.map((anime, index) => ({
+      id: anime.id,
+      sort_order: index + 1
+    }));
+
+    for (const update of updates) {
+      await supabase.from('anime').update({ sort_order: update.sort_order }).eq('id', update.id);
+    }
+
+    setAnimeLists(prev => ({
+      ...prev,
+      [activeCategory]: newList
+    }));
+
+    setDragId(null);
+    setDragOverId(null);
+  };
 
   const handleAddAnime = async (anime) => {
     const currentList = animeLists[activeCategory] || [];
@@ -272,7 +363,6 @@ export default function Home() {
     }
   };
 
-  // НОВАЯ ФУНКЦИЯ: обновление даты обратного отсчёта
   const handleUpdateCountdown = async (animeId, countdownDate) => {
     const { error } = await supabase.from('anime').update({ countdown_date: countdownDate }).eq('id', animeId);
     if (error) {
@@ -336,50 +426,6 @@ export default function Home() {
         return newList;
       });
     }
-  };
-
-  const handleDragStart = (animeId) => {
-    setDragId(animeId);
-  };
-
-  const handleDragOver = (animeId) => {
-    if (dragId === animeId) return;
-    setDragOverId(animeId);
-  };
-
-  const handleDrop = async (targetId) => {
-    if (!dragId || dragId === targetId) {
-      setDragId(null);
-      setDragOverId(null);
-      return;
-    }
-
-    const currentList = animeLists[activeCategory] || [];
-    const dragIndex = currentList.findIndex(a => a.id === dragId);
-    const dropIndex = currentList.findIndex(a => a.id === targetId);
-    
-    if (dragIndex === -1 || dropIndex === -1) return;
-
-    const newList = [...currentList];
-    const [moved] = newList.splice(dragIndex, 1);
-    newList.splice(dropIndex, 0, moved);
-
-    const updates = newList.map((anime, index) => ({
-      id: anime.id,
-      sort_order: index + 1
-    }));
-
-    for (const update of updates) {
-      await supabase.from('anime').update({ sort_order: update.sort_order }).eq('id', update.id);
-    }
-
-    setAnimeLists(prev => ({
-      ...prev,
-      [activeCategory]: newList
-    }));
-
-    setDragId(null);
-    setDragOverId(null);
   };
 
   const handleAlphabetSort = (enabled) => {
@@ -526,12 +572,12 @@ export default function Home() {
                 selectMode ? 'bg-gradient-to-r from-yellow-600 to-yellow-700 text-white shadow-lg shadow-yellow-900/50' : 'bg-black/60 border border-red-900/30 text-gray-400 hover:text-white hover:border-red-700'
               }`}
             >
-              {selectMode ? '✓ Режим выбора' : '☐ Выбрать'}
+              {selectMode ? '✓ Режим выбора' : ' Выбрать'}
             </button>
 
             <button
               onClick={() => setShowManualAdd(true)}
-              className="p-5 rounded-full bg-gradient-to-br from-green-600 to-green-800 border-2 border-green-500 text-white hover:from-green-500 hover:to-green-700 shadow-xl shadow-green-600/50 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-0 animate-bounce hover:animate-none"
+  className="p-5 rounded-full bg-gradient-to-br from-green-600 to-green-800 border-2 border-green-500 text-white hover:from-green-500 hover:to-green-700 shadow-xl shadow-green-600/50 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-0 animate-pulse"
               title="Добавить аниме вручную"
               style={{ boxShadow: '0 0 20px rgba(34, 197, 94, 0.6), 0 0 40px rgba(34, 197, 94, 0.3)' }}
             >
@@ -634,6 +680,7 @@ export default function Home() {
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
                 isDragging={dragId === anime.id}
                 dragOverId={dragOverId}
               />

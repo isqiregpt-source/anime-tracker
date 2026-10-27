@@ -189,7 +189,7 @@ export default function AnimeCard({
             </div>
           </div>
           <div className="flex gap-3 pt-2">
-            <button onClick={handleSaveEdit} className="flex-1 px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition">💾 Сохранить</button>
+            <button onClick={handleSaveEdit} className="flex-1 px-4 py-2 bg-green-700 hover:bg-green-600 rounded-lg text-white text-sm font-bold transition"> Сохранить</button>
             <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm font-bold transition">Отмена</button>
           </div>
         </div>
@@ -232,17 +232,6 @@ export default function AnimeCard({
           </button>
         )}
 
-        {/* ОБРАТНЫЙ ОТСЧЁТ — только для папки "Ожидаю" */}
-        {isInWaitlist && timeLeft && (
-          <div className={`absolute top-3 left-3 px-3 py-1.5 rounded-lg font-bold text-sm z-30 shadow-lg ${
-            timeLeft.expired 
-              ? 'bg-red-700 text-white animate-pulse' 
-              : 'bg-red-900/80 text-red-300 border border-red-700/50'
-          }`}>
-            ⏳ {timeLeft.text}
-          </div>
-        )}
-
         {/* Drag handle */}
         {!selectMode && (
           <div className="flex items-center flex-shrink-0 px-2 text-gray-600 hover:text-yellow-400 transition" title="Зажми и перетащи">
@@ -276,9 +265,9 @@ export default function AnimeCard({
               )}
             </div>
             <div className="flex items-center gap-3 text-base">
-              <span className="text-gray-300">📅 {anime.year}</span>
+              <span className="text-gray-300"> {anime.year}</span>
               <span className="text-gray-600">•</span>
-              <span className="text-gray-300"> {anime.episodes} эп.</span>
+              <span className="text-gray-300">🎬 {anime.episodes} эп.</span>
               {anime.score && anime.score > 0 && (<><span className="text-gray-600">•</span><span className="text-yellow-400 font-black text-lg">⭐ {anime.score}%</span></>)}
             </div>
             {anime.genres && anime.genres.length > 0 && (
@@ -286,6 +275,17 @@ export default function AnimeCard({
                 {anime.genres.slice(0, 5).map((genre) => (
                   <span key={genre} className="px-3 py-1 bg-red-900/30 border border-red-900/50 rounded-full text-sm text-red-300 font-medium">{genre}</span>
                 ))}
+              </div>
+            )}
+
+            {/* ОБРАТНЫЙ ОТСЧЁТ — по центру карточки, только для папки "Ожидаю" */}
+            {isInWaitlist && timeLeft && (
+              <div className={`w-full text-center py-3 px-4 rounded-xl font-black text-2xl tracking-wider shadow-2xl border-2 ${
+                timeLeft.expired 
+                  ? 'bg-red-700 text-white border-red-500 animate-pulse' 
+                  : 'bg-gradient-to-r from-red-900 via-red-800 to-red-900 text-red-200 border-red-700/70'
+              }`}>
+                ⏳ {timeLeft.text}
               </div>
             )}
 
@@ -411,7 +411,7 @@ export default function AnimeCard({
                 }} 
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-300 hover:bg-red-900/50 hover:text-white rounded-lg transition flex items-center gap-2"
               >
-                {showNote ? '📝 Скрыть заметку' : '📝 Показать заметку'}
+                {showNote ? ' Скрыть заметку' : '📝 Показать заметку'}
                 {showNote && <span className="text-green-400 font-bold ml-auto">✓</span>}
               </button>
 
@@ -420,7 +420,7 @@ export default function AnimeCard({
               {[
                 { id: 'watching', name: '▶️ В процессе' },
                 { id: 'completed', name: '⭐ Просмотренные' },
-                { id: 'planned', name: '📌 Запланированные' },
+                { id: 'planned', name: ' Запланированные' },
                 { id: 'on_hold', name: '⏸️ Ожидаю' },
                 { id: 'dropped', name: '🗑️ Заброшенные' },
                 { id: 'closed', name: '🔒 Закрытые' }
@@ -454,13 +454,13 @@ export default function AnimeCard({
         </>
       )}
 
-      {/* МОДАЛКА УСТАНОВКИ ДАТЫ */}
+      {/* МОДАЛКА УСТАНОВКИ ДАТЫ — только дата, без времени */}
       {showCountdownModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[320] p-4">
           <div className="bg-gray-900 border-2 border-red-700/50 rounded-2xl max-w-md w-full shadow-2xl">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-red-400"> Дата обратного отсчёта</h3>
+                <h3 className="text-xl font-bold text-red-400">📅 Дата обратного отсчёта</h3>
                 <button 
                   onClick={() => {
                     setShowCountdownModal(false);
@@ -479,15 +479,15 @@ export default function AnimeCard({
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-2">Выбери дату и время:</label>
+                  <label className="block text-sm text-gray-400 mb-2">Выбери дату:</label>
                   <input 
-                    type="datetime-local"
+                    type="date"
                     value={countdownInput}
                     onChange={(e) => setCountdownInput(e.target.value)}
                     className="w-full px-4 py-3 bg-black/60 border-2 border-red-900/30 rounded-lg text-white text-base focus:outline-none focus:border-red-700"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    {countdownInput && `Выбрано: ${new Date(countdownInput).toLocaleString('ru-RU')}`}
+                    {countdownInput && `Выбрано: ${new Date(countdownInput).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })}`}
                   </p>
                 </div>
 
